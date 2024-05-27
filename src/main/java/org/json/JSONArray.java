@@ -180,7 +180,6 @@ public class JSONArray implements Iterable<Object> {
      */
     public JSONArray(String source) throws JSONException {
         this(new JSONTokener(source), new JSONParserConfiguration());
-        confirmStrictModeEof();
     }
 
     /**
@@ -326,7 +325,6 @@ public class JSONArray implements Iterable<Object> {
                 throw this.jsonTokener.syntaxError(getInvalidCharErrorMsg(c));
             }
         }
-
     }
 
     /**
