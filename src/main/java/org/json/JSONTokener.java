@@ -457,20 +457,6 @@ public class JSONTokener {
     }
 
     /**
-     * This method is used to get a JSONArray from the JSONTokener.
-     *
-     * @return A JSONArray which is the next value in the JSONTokener.
-     * @throws JSONException If the JSONArray depth is too large to process.
-     */
-    private JSONArray getJsonArray() {
-        try {
-            return new JSONArray(this);
-        } catch (StackOverflowError e) {
-            throw new JSONException("JSON Array or Object depth too large to process.", e);
-        }
-    }
-
-    /**
      * Get the next simple value from the JSON input. Simple values include strings (wrapped in single or double
      * quotes), numbers, booleans, and null. This method is called when the next character is not '{' or '['.
      *
