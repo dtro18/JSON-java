@@ -67,6 +67,10 @@ public class JSONArray implements Iterable<Object> {
      */
     private final ArrayList<Object> myArrayList;
 
+    private JSONTokener jsonTokener;
+
+    private JSONParserConfiguration jsonParserConfiguration;
+
     /**
      * Construct an empty JSONArray.
      */
@@ -90,76 +94,64 @@ public class JSONArray implements Iterable<Object> {
      * Constructs a JSONArray from a JSONTokener and a JSONParserConfiguration.
      * JSONParserConfiguration contains strictMode turned off (false) by default.
      *
-     * @param x                       A JSONTokener instance from which the JSONArray is constructed.
+     * @param jsonTokener A JSONTokener instance from which the JSONArray is constructed.
      * @param jsonParserConfiguration A JSONParserConfiguration instance that controls the behavior of the parser.
      * @throws JSONException If a syntax error occurs during the construction of the JSONArray.
      */
-    public JSONArray(JSONTokener x, JSONParserConfiguration jsonParserConfiguration) throws JSONException {
+    public JSONArray(JSONTokener jsonTokener, JSONParserConfiguration jsonParserConfiguration) throws JSONException {
         this();
-        char nextChar = x.nextClean();
+        this.jsonTokener = jsonTokener;
+        this.jsonParserConfiguration = jsonParserConfiguration;
+
+        char nextChar = this.jsonTokener.nextClean();
 
         // check first character, if not '[' throw JSONException
         if (nextChar != '[') {
-            throw x.syntaxError("A JSONArray text must start with '['");
+            throw this.jsonTokener.syntaxError("A JSONArray text must start with '['");
         }
 
-        parseTokener(x, jsonParserConfiguration); // runs recursively
+        parseTokener(jsonParserConfiguration); // runs recursively
 
     }
 
-    private void parseTokener(JSONTokener x, JSONParserConfiguration jsonParserConfiguration) {
+    /**
+     * This method utilizes a JSONTokener initialized with a string to parse a JSONArray
+     * @param jsonParserConfiguration
+     */
+    private void parseTokener(JSONParserConfiguration jsonParserConfiguration) {
         boolean strictMode = jsonParserConfiguration.isStrictMode();
 
-        char cursor = x.nextClean();
+        char cursor = this.jsonTokener.nextClean();
 
         switch (cursor) {
             case 0:
-                throwErrorIfEoF(x);
+                throwErrorIfEoF();
                 break;
             case ',':
-                cursor = x.nextClean();
+                cursor = this.jsonTokener.nextClean();
 
-                throwErrorIfEoF(x);
+                throwErrorIfEoF();
 
                 if(strictMode && cursor == ']'){
-                    throw x.syntaxError(getInvalidCharErrorMsg(cursor));
+                    throw this.jsonTokener.syntaxError(getInvalidCharErrorMsg(cursor));
                 }
 
                 if (cursor == ']') {
                     break;
                 }
 
-                x.back();
+                this.jsonTokener.back();
 
-                parseTokener(x, jsonParserConfiguration);
+                parseTokener(jsonParserConfiguration);
                 break;
             case ']':
-                if (strictMode) {
-                    cursor = x.nextClean();
-                    boolean isEoF = x.end();
-
-                    if (isEoF) {
-                        break;
-                    }
-
-                    if (x.getArrayLevel() == 0) {
-                        throw x.syntaxError(getInvalidCharErrorMsg(cursor));
-                    }
-
-                    x.back();
-                }
                 break;
             default:
-                x.back();
-                boolean currentCharIsQuote = x.getPrevious() == '"';
-                boolean quoteIsNotNextToValidChar = x.getPreviousChar() != ',' && x.getPreviousChar() != '[';
+                this.jsonTokener.back();
+                boolean currentCharIsQuote = this.jsonTokener.getPrevious() == '"';
 
-                if (strictMode && currentCharIsQuote && quoteIsNotNextToValidChar) {
-                    throw x.syntaxError(getInvalidCharErrorMsg(cursor));
-                }
-
-                this.myArrayList.add(x.nextValue(jsonParserConfiguration));
-                parseTokener(x, jsonParserConfiguration);
+                this.myArrayList.add(this.jsonTokener.nextValue(jsonParserConfiguration));
+                parseTokener(jsonParserConfiguration);
         }
     }
 
@@ -167,12 +159,12 @@ public class JSONArray implements Iterable<Object> {
      * Throws JSONException if JSONTokener has reached end of file, usually when array is unclosed. No ']' found,
      * instead EoF.
      *
-     * @param x the JSONTokener being evaluated.
      * @throws JSONException if JSONTokener has reached end of file.
      */
-    private void throwErrorIfEoF(JSONTokener x) {
-        if (x.end()) {
-            throw x.syntaxError(String.format("Expected a ',' or ']' but instead found '%s'", x.getPrevious()));
+    private void throwErrorIfEoF() {
+        if (this.jsonTokener.end()) {
+            throw this.jsonTokener.syntaxError(String.format("Expected a ',' or ']' but instead found '%s'",
+                    this.jsonTokener.getPrevious()));
         }
     }
 
@@ -188,6 +180,7 @@ public class JSONArray implements Iterable<Object> {
      */
     public JSONArray(String source) throws JSONException {
         this(new JSONTokener(source), new JSONParserConfiguration());
+        confirmStrictModeEof();
     }
 
     /**
@@ -200,6 +193,7 @@ public class JSONArray implements Iterable<Object> {
      */
     public JSONArray(String source, JSONParserConfiguration jsonParserConfiguration) throws JSONException {
         this(new JSONTokener(source), jsonParserConfiguration);
+        confirmStrictModeEof();
     }
 
     /**
@@ -316,6 +310,23 @@ public class JSONArray implements Iterable<Object> {
     @Override
     public Iterator<Object> iterator() {
         return this.myArrayList.iterator();
+    }
+
+    /**
+     * Convenience method to confirm parsing is completed when in strict mode
+     * Will throw an exception if there are any chars remaining to
+     * parse in strict mode. This method should only by called when performing
+     * a top-level JSONArray parsing (i.e. the JSONArray is the complete JSON doc).
+     * @throws JSONException if in strict mode and not at end of file
+     */
+    private void confirmStrictModeEof() {
+        if (this.jsonParserConfiguration.isStrictMode()) {
+            char c = this.jsonTokener.nextClean();
+            if (c != 0) {
+                throw this.jsonTokener.syntaxError(getInvalidCharErrorMsg(c));
+            }
+        }
+
     }
 
     /**
