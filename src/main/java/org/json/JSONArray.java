@@ -110,16 +110,14 @@ public class JSONArray implements Iterable<Object> {
             throw this.jsonTokener.syntaxError("A JSONArray text must start with '['");
         }
 
-        parseTokener(jsonParserConfiguration); // runs recursively
+        parseTokener(); // runs recursively
 
     }
 
     /**
      * This method utilizes a JSONTokener initialized with a string to parse a JSONArray
-     * @param jsonParserConfiguration
      */
-    private void parseTokener(JSONParserConfiguration jsonParserConfiguration) {
-        boolean strictMode = jsonParserConfiguration.isStrictMode();
+    private void parseTokener() {
 
         char cursor = this.jsonTokener.nextClean();
 
@@ -132,7 +130,7 @@ public class JSONArray implements Iterable<Object> {
 
                 throwErrorIfEoF();
 
-                if(strictMode && cursor == ']'){
+                if(this.jsonParserConfiguration.isStrictMode() && cursor == ']'){
                     throw this.jsonTokener.syntaxError(getInvalidCharErrorMsg(cursor));
                 }
 
@@ -142,7 +140,7 @@ public class JSONArray implements Iterable<Object> {
 
                 this.jsonTokener.back();
 
-                parseTokener(jsonParserConfiguration);
+                parseTokener();
                 break;
             case ']':
                 break;
@@ -151,7 +149,7 @@ public class JSONArray implements Iterable<Object> {
                 boolean currentCharIsQuote = this.jsonTokener.getPrevious() == '"';
 
                 this.myArrayList.add(this.jsonTokener.nextValue(jsonParserConfiguration));
-                parseTokener(jsonParserConfiguration);
+                parseTokener();
         }
     }
 
