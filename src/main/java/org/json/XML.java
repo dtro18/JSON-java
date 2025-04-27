@@ -393,16 +393,20 @@ public class XML {
 
                 } else if (token == GT) {
                     // Content, between <...> and </...>
+                    // System.out.println(currentNestingDepth);
+                    // System.out.println(tagName);
                     for (;;) {
                         token = x.nextContent();
+                        
                         if (token == null) {
                             if (tagName != null) {
                                 throw x.syntaxError("Unclosed tag " + tagName);
                             }
                             return false;
                         } else if (token instanceof String) {
+                            System.out.println(token);
                             string = (String) token;
-                            if (string.length() > 0) {
+                            if (string.length() > 0) {  
                                 if(xmlXsiTypeConverter != null) {
                                     jsonObject.accumulate(config.getcDataTagName(),
                                             stringToValue(string, xmlXsiTypeConverter));
