@@ -24,7 +24,9 @@ public class ParseXMLTest {
             "       <ArrayOfNum>1, 2, 3, 4.1, 5.2</ArrayOfNum>\n"+
             "   </address>\n"+
             "</addresses>";
-        JSONObject json = XML.toJSONObject(xmlStr);
+        
+        String searchPath = "addresses/address/name";
+        JSONObject json = XML.toJSONObject(xmlStr, searchPath);
 
     }
 }

@@ -265,7 +265,6 @@ public class XML {
         // <<
 
         token = x.nextToken();
-
         // <!
 
         if (token == BANG) {
@@ -324,10 +323,10 @@ public class XML {
 
         } else if (token instanceof Character) {
             throw x.syntaxError("Misshaped tag");
-
             // Open tag <
-
         } else {
+            // We're inside of a tag.
+            // Set the tagname to be what the current token is.
             tagName = (String) token;
             token = null;
             jsonObject = new JSONObject();
@@ -335,6 +334,7 @@ public class XML {
             xmlXsiTypeConverter = null;
             for (;;) {
                 if (token == null) {
+                    // Grab next token. Usually (>)
                     token = x.nextToken();
                 }
                 // attribute = value
@@ -393,8 +393,8 @@ public class XML {
 
                 } else if (token == GT) {
                     // Content, between <...> and </...>
-                    // System.out.println(currentNestingDepth);
-                    // System.out.println(tagName);
+                    // We just hit a closing tag, so actual content incoming.
+                    System.out.println("Tag name " + tagName);
                     for (;;) {
                         token = x.nextContent();
                         
@@ -403,8 +403,10 @@ public class XML {
                                 throw x.syntaxError("Unclosed tag " + tagName);
                             }
                             return false;
+                        
                         } else if (token instanceof String) {
-                            System.out.println(token);
+                            // If we have regular content contained in tags
+                            System.out.println("Token content: " + token);
                             string = (String) token;
                             if (string.length() > 0) {  
                                 if(xmlXsiTypeConverter != null) {
@@ -415,14 +417,256 @@ public class XML {
                                             config.isKeepStrings() ? string : stringToValue(string));
                                 }
                             }
-
                         } else if (token == LT) {
-                            // Nested element
+                            // Nested element, call parse again.
                             if (currentNestingDepth == config.getMaxNestingDepth()) {
                                 throw x.syntaxError("Maximum nesting depth of " + config.getMaxNestingDepth() + " reached");
                             }
 
                             if (parse(x, jsonObject, tagName, config, currentNestingDepth + 1)) {
+                                if (config.getForceList().contains(tagName)) {
+                                    // Force the value to be an array
+                                    if (jsonObject.length() == 0) {
+                                        context.put(tagName, new JSONArray());
+                                    } else if (jsonObject.length() == 1
+                                            && jsonObject.opt(config.getcDataTagName()) != null) {
+                                        context.append(tagName, jsonObject.opt(config.getcDataTagName()));
+                                    } else {
+                                        context.append(tagName, jsonObject);
+                                    }
+                                } else {
+                                    if (jsonObject.length() == 0) {
+                                        context.accumulate(tagName, "");
+                                    } else if (jsonObject.length() == 1
+                                            && jsonObject.opt(config.getcDataTagName()) != null) {
+                                        context.accumulate(tagName, jsonObject.opt(config.getcDataTagName()));
+                                    } else {
+                                        if (!config.shouldTrimWhiteSpace()) {
+                                            removeEmpty(jsonObject, config);
+                                        }
+                                        context.accumulate(tagName, jsonObject);
+                                    }
+                                }
+
+                                return false;
+                            }
+                        }
+                    }
+                } else {
+                    throw x.syntaxError("Misshaped tag");
+                }
+            }
+        }
+    }
+
+        /**
+     * Scan the content following the named tag, attaching it to the context.
+     *
+     * @param x
+     *            The XMLTokener containing the source string.
+     * @param context
+     *            The JSONObject that will include the new material.
+     * @param name
+     *            The tag name.
+     * @param config
+     *            The XML parser configuration.
+     * @param currentNestingDepth
+     *            The current nesting depth.
+     * @param path
+     *            The array specifying the path to explore.
+     *            
+     * @return true if the close tag is processed.
+     * @throws JSONException Thrown if any parsing error occurs.
+     */
+    // Add back parameter String[]
+    private static boolean search(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, int currentNestingDepth, String[] pathArray)
+            throws JSONException {
+        char c;
+        int i;
+        JSONObject jsonObject = null;
+        String string;
+        String tagName;
+        Object token;
+        XMLXsiTypeConverter<?> xmlXsiTypeConverter;
+        Integer foundCount = 0;
+
+        // Test for and skip past these forms:
+        // <!-- ... -->
+        // <! ... >
+        // <![ ... ]]>
+        // <? ... ?>
+        // Report errors for these forms:
+        // <>
+        // <=
+        // <<
+
+        token = x.nextToken();
+        // <!
+
+        if (token == BANG) {
+            c = x.next();
+            if (c == '-') {
+                if (x.next() == '-') {
+                    x.skipPast("-->");
+                    return false;
+                }
+                x.back();
+            } else if (c == '[') {
+                token = x.nextToken();
+                if ("CDATA".equals(token)) {
+                    if (x.next() == '[') {
+                        string = x.nextCDATA();
+                        if (string.length() > 0) {
+                            context.accumulate(config.getcDataTagName(), string);
+                        }
+                        return false;
+                    }
+                }
+                throw x.syntaxError("Expected 'CDATA['");
+            }
+            i = 1;
+            do {
+                token = x.nextMeta();
+                if (token == null) {
+                    throw x.syntaxError("Missing '>' after '<!'.");
+                } else if (token == LT) {
+                    i += 1;
+                } else if (token == GT) {
+                    i -= 1;
+                }
+            } while (i > 0);
+            return false;
+        } else if (token == QUEST) {
+
+            // <?
+            x.skipPast("?>");
+            return false;
+        } else if (token == SLASH) {
+
+            // Close tag </
+
+            token = x.nextToken();
+            if (name == null) {
+                throw x.syntaxError("Mismatched close tag " + token);
+            }
+            if (!token.equals(name)) {
+                throw x.syntaxError("Mismatched " + name + " and " + token);
+            }
+            if (x.nextToken() != GT) {
+                throw x.syntaxError("Misshaped close tag");
+            }
+            return true;
+
+        } else if (token instanceof Character) {
+            throw x.syntaxError("Misshaped tag");
+            // Open tag <
+        } else {
+            // We're inside of a tag.
+            // Set the tagname to be what the current token is.
+            tagName = (String) token;
+            // If the current tagname matches the path, we should traverse.
+            // If not, we should skip to the next tag on the same level.
+            if (!tagName.equals(pathArray[currentNestingDepth])) {
+                x.skipPast("</" + tagName);
+                return false;
+            }
+            System.out.println("Currently accessing: " + pathArray[currentNestingDepth]);
+            token = null;
+            jsonObject = new JSONObject();
+            boolean nilAttributeFound = false;
+            xmlXsiTypeConverter = null;
+            for (;;) {
+                if (token == null) {
+                    // Grab next token. Usually (>)
+                    token = x.nextToken();
+                }
+                // attribute = value
+                if (token instanceof String) {
+                    string = (String) token;
+                    token = x.nextToken();
+                    if (token == EQ) {
+                        token = x.nextToken();
+                        if (!(token instanceof String)) {
+                            throw x.syntaxError("Missing value");
+                        }
+
+                        if (config.isConvertNilAttributeToNull()
+                                && NULL_ATTR.equals(string)
+                                && Boolean.parseBoolean((String) token)) {
+                            nilAttributeFound = true;
+                        } else if(config.getXsiTypeMap() != null && !config.getXsiTypeMap().isEmpty()
+                                && TYPE_ATTR.equals(string)) {
+                            xmlXsiTypeConverter = config.getXsiTypeMap().get(token);
+                        } else if (!nilAttributeFound) {
+                            jsonObject.accumulate(string,
+                                    config.isKeepStrings()
+                                            ? ((String) token)
+                                            : stringToValue((String) token));
+                        }
+                        token = null;
+                    } else {
+                        jsonObject.accumulate(string, "");
+                    }
+
+
+                } else if (token == SLASH) {
+                    // Empty tag <.../>
+                    if (x.nextToken() != GT) {
+                        throw x.syntaxError("Misshaped tag");
+                    }
+                    if (config.getForceList().contains(tagName)) {
+                        // Force the value to be an array
+                        if (nilAttributeFound) {
+                            context.append(tagName, JSONObject.NULL);
+                        } else if (jsonObject.length() > 0) {
+                            context.append(tagName, jsonObject);
+                        } else {
+                            context.put(tagName, new JSONArray());
+                        }
+                    } else {
+                        if (nilAttributeFound) {
+                            context.accumulate(tagName, JSONObject.NULL);
+                        } else if (jsonObject.length() > 0) {
+                            context.accumulate(tagName, jsonObject);
+                        } else {
+                            context.accumulate(tagName, "");
+                        }
+                    }
+                    return false;
+
+                } else if (token == GT) {
+                    // Content, between <...> and </...>
+                    // We just hit a closing tag, so actual content incoming.
+                    System.out.println("Tag name " + tagName);
+                    for (;;) {
+                        token = x.nextContent();
+                        
+                        if (token == null) {
+                            if (tagName != null) {
+                                throw x.syntaxError("Unclosed tag " + tagName);
+                            }
+                            return false;
+                        
+                        } else if (token instanceof String) {
+                            // If we have regular content contained in tags
+                            System.out.println("Token content: " + token);
+                            string = (String) token;
+                            if (string.length() > 0) {  
+                                if(xmlXsiTypeConverter != null) {
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            stringToValue(string, xmlXsiTypeConverter));
+                                } else {
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            config.isKeepStrings() ? string : stringToValue(string));
+                                }
+                            }
+                        } else if (token == LT) {
+                            // Nested element, call parse again.
+                            if (currentNestingDepth == config.getMaxNestingDepth()) {
+                                throw x.syntaxError("Maximum nesting depth of " + config.getMaxNestingDepth() + " reached");
+                            }
+
+                            if (search(x, jsonObject, tagName, config, currentNestingDepth + 1, pathArray)) {
                                 if (config.getForceList().contains(tagName)) {
                                     // Force the value to be an array
                                     if (jsonObject.length() == 0) {
@@ -664,6 +908,11 @@ public class XML {
         return toJSONObject(reader, XMLParserConfiguration.ORIGINAL);
     }
 
+    // Method call with search functionality
+    public static JSONObject toJSONObject(String xmlString, String filePath) {
+        return findJSONObject(new StringReader(xmlString), XMLParserConfiguration.ORIGINAL, filePath);
+    }
+
     /**
      * Convert a well-formed (but not necessarily valid) XML into a
      * JSONObject. Some information may be lost in this transformation because
@@ -724,6 +973,20 @@ public class XML {
         return jo;
     }
 
+    public static JSONObject findJSONObject(Reader reader, XMLParserConfiguration config, String filePath) throws JSONException {
+        // pathArray is a fixed-length array that can be indexed into. 
+        String[] pathArray = filePath.split("/");
+        JSONObject jo = new JSONObject();
+        XMLTokener x = new XMLTokener(reader, config);
+        while (x.more()) {
+            x.skipPast("<");
+            if(x.more()) {
+                search(x, jo, null, config, 0, pathArray);
+            }
+        }
+        System.out.println(jo.toString());
+        return jo;
+    } 
     /**
      * Convert a well-formed (but not necessarily valid) XML string into a
      * JSONObject. Some information may be lost in this transformation because
