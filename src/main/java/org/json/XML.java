@@ -649,16 +649,13 @@ public class XML {
                         } else if (token instanceof String) {
                             string = (String) token;
                             if (string.length() > 0) {
-                                if (canReplaceCurrent) {
-                                    // We should stop and replace, and ignore traversal until we get to the closing tag.
+                                // Change here?????
+                                if (xmlXsiTypeConverter != null) {
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            stringToValue(string, xmlXsiTypeConverter));
                                 } else {
-                                    if (xmlXsiTypeConverter != null) {
-                                        jsonObject.accumulate(config.getcDataTagName(),
-                                                stringToValue(string, xmlXsiTypeConverter));
-                                    } else {
-                                        jsonObject.accumulate(config.getcDataTagName(),
-                                                config.isKeepStrings() ? string : stringToValue(string));
-                                    }
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            config.isKeepStrings() ? string : stringToValue(string));
                                 }
                             }
                         } else if (token == LT) {
@@ -671,6 +668,7 @@ public class XML {
                                     // Handle replacement for element with content/nested elements
                                     if (replacement.has(tagName)) {
                                         context.put(tagName, replacement.get(tagName));
+
                                     }
                                 } else {
                                     if (config.getForceList().contains(tagName)) {
