@@ -2,4 +2,4 @@ Build using
 mvn clean test
 
 Run specific test (XMLTest):
-mvn test -Dtest="XMLTest.java"
+mvn test -Dtest="ParseXMLTest.java"

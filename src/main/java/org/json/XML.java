@@ -394,7 +394,7 @@ public class XML {
                 } else if (token == GT) {
                     // Content, between <...> and </...>
                     // We just hit a closing tag, so actual content incoming.
-                    System.out.println("Tag name " + tagName);
+                    // System.out.println("Tag name " + tagName);
                     for (;;) {
                         token = x.nextContent();
                         
@@ -458,28 +458,7 @@ public class XML {
             }
         }
     }
-
-        /**
-     * Scan the content following the named tag, attaching it to the context.
-     *
-     * @param x
-     *            The XMLTokener containing the source string.
-     * @param context
-     *            The JSONObject that will include the new material.
-     * @param name
-     *            The tag name.
-     * @param config
-     *            The XML parser configuration.
-     * @param currentNestingDepth
-     *            The current nesting depth.
-     * @param path
-     *            The array specifying the path to explore.
-     *            
-     * @return true if the close tag is processed.
-     * @throws JSONException Thrown if any parsing error occurs.
-     */
-    // Add back parameter String[]
-    private static boolean search(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, int currentNestingDepth, String[] pathArray)
+    private static boolean parse(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, int currentNestingDepth, String[] pathArray, JSONObject replacement, boolean canReplace, boolean beenMatching)
             throws JSONException {
         char c;
         int i;
@@ -488,7 +467,261 @@ public class XML {
         String tagName;
         Object token;
         XMLXsiTypeConverter<?> xmlXsiTypeConverter;
-        Integer foundCount = 0;
+
+        // Test for and skip past these forms:
+        // <!-- ... -->
+        // <! ... >
+        // <![ ... ]]>
+        // <? ... ?>
+        // Report errors for these forms:
+        // <>
+        // <=
+        // <<
+
+        token = x.nextToken();
+
+        // <!W
+
+        if (token == BANG) {
+            c = x.next();
+            if (c == '-') {
+                if (x.next() == '-') {
+                    x.skipPast("-->");
+                    return false;
+                }
+                x.back();
+            } else if (c == '[') {
+                token = x.nextToken();
+                if ("CDATA".equals(token)) {
+                    if (x.next() == '[') {
+                        string = x.nextCDATA();
+                        if (string.length() > 0 && !canReplace) {
+                            context.accumulate(config.getcDataTagName(), string);
+                        }
+                        return false;
+                    }
+                }
+                throw x.syntaxError("Expected 'CDATA['");
+            }
+            i = 1;
+            do {
+                token = x.nextMeta();
+                if (token == null) {
+                    throw x.syntaxError("Missing '>' after '<!'.");
+                } else if (token == LT) {
+                    i += 1;
+                } else if (token == GT) {
+                    i -= 1;
+                }
+            } while (i > 0);
+            return false;
+        } else if (token == QUEST) {
+
+            // <?
+            x.skipPast("?>");
+            return false;
+        } else if (token == SLASH) {
+
+            // Close tag </
+
+            token = x.nextToken();
+            if (!canReplace) {
+                if (name == null) {
+                    throw x.syntaxError("Mismatched close tag " + token + currentNestingDepth);
+                }
+                if (!token.equals(name)) {
+                    throw x.syntaxError("Mismatched " + name + " and " + token + currentNestingDepth);
+                }
+                if (x.nextToken() != GT) {
+                    throw x.syntaxError("Misshaped close tag");
+                }
+            }
+            return true;
+
+        } else if (token instanceof Character && !canReplace) {
+            throw x.syntaxError("Misshaped tag");
+
+            // Open tag <
+
+        } else {
+            // Process a well-formed tag.
+            tagName = (String) token;
+            boolean beenMatchingCurrent = beenMatching;
+            boolean canReplaceCurrent = canReplace;
+
+            // Check if this tag matches our JSONPointer path at current nesting level
+            if (currentNestingDepth < pathArray.length) {
+                if (currentNestingDepth == 0) {
+                    beenMatchingCurrent = tagName.equals(pathArray[currentNestingDepth]);
+                } else {
+                    beenMatchingCurrent = beenMatching && tagName.equals(pathArray[currentNestingDepth]);
+                }
+                
+                // Set canReplaceCurrent to true if reaching target key
+                if (currentNestingDepth == pathArray.length - 1 && beenMatchingCurrent) {
+                    canReplaceCurrent = true;
+                }
+            }
+            
+            token = null;
+            jsonObject = new JSONObject();
+            boolean nilAttributeFound = false;
+            xmlXsiTypeConverter = null;
+            // Handles processing of the rest of the tag (>, attributes)
+            for (;;) {
+                if (token == null) {
+                    token = x.nextToken();
+                }
+                // We hit an attribute.
+                if (token instanceof String) {
+                    string = (String) token;
+                    token = x.nextToken();
+                    if (token == EQ) {
+                        token = x.nextToken();
+                        if (!(token instanceof String)) {
+                            throw x.syntaxError("Missing value");
+                        }
+                        if (!canReplaceCurrent) {
+                            if (config.isConvertNilAttributeToNull()
+                                    && NULL_ATTR.equals(string)
+                                    && Boolean.parseBoolean((String) token)) {
+                                nilAttributeFound = true;
+                            } else if(config.getXsiTypeMap() != null && !config.getXsiTypeMap().isEmpty()
+                                    && TYPE_ATTR.equals(string)) {
+                                xmlXsiTypeConverter = config.getXsiTypeMap().get(token);
+                            } else if (!nilAttributeFound) {
+                                jsonObject.accumulate(string,
+                                    config.isKeepStrings()
+                                            ? ((String) token)
+                                            : stringToValue((String) token));
+                            }
+                        }
+                        token = null;
+                    } else if (!canReplaceCurrent) {
+                        jsonObject.accumulate(string, "");
+                    }
+
+
+                } else if (token == SLASH) {
+                    // Empty tag <.../>
+                    if (x.nextToken() != GT) {
+                        throw x.syntaxError("Misshaped tag");
+                    }
+                    // If we've located an empty tag that's the end of the path, we should replace it.
+                    if (canReplaceCurrent) {
+                        // Handle replacement for self-closing tags
+                        if (replacement.has(tagName)) {
+                            context.put(tagName, replacement.get(tagName));
+                        }
+                    } else {
+                        if (config.getForceList().contains(tagName)) {
+                            // Force the value to be an array
+                            if (nilAttributeFound) {
+                                context.append(tagName, JSONObject.NULL);
+                            } else if (jsonObject.length() > 0) {
+                                context.append(tagName, jsonObject);
+                            } else {
+                                context.put(tagName, new JSONArray());
+                            }
+                        } else {
+                            if (nilAttributeFound) {
+                                context.accumulate(tagName, JSONObject.NULL);
+                            } else if (jsonObject.length() > 0) {
+                                context.accumulate(tagName, jsonObject);
+                            } else {
+                                context.accumulate(tagName, "");
+                            }
+                        }
+                    }
+                    return false;
+
+                } else if (token == GT) {
+                    // Actual content, between <...> and </...>
+                    for (;;) {
+                        token = x.nextContent();
+                        // System.out.println("Context: " + context);
+                        if (token == null) {
+                            if (tagName != null) {
+                                throw x.syntaxError("Unclosed tag " + tagName);
+                            }
+                            return false;
+                        
+                        } else if (token instanceof String) {
+                            string = (String) token;
+                            if (string.length() > 0) {
+                                if (canReplaceCurrent) {
+                                    // We should stop and replace, and ignore traversal until we get to the closing tag.
+                                } else {
+                                    if (xmlXsiTypeConverter != null) {
+                                        jsonObject.accumulate(config.getcDataTagName(),
+                                                stringToValue(string, xmlXsiTypeConverter));
+                                    } else {
+                                        jsonObject.accumulate(config.getcDataTagName(),
+                                                config.isKeepStrings() ? string : stringToValue(string));
+                                    }
+                                }
+                            }
+                        } else if (token == LT) {
+                            // Nested element
+                            if (currentNestingDepth == config.getMaxNestingDepth()) {
+                                throw x.syntaxError("Maximum nesting depth of " + config.getMaxNestingDepth() + " reached");
+                            }
+                            if (parse(x, jsonObject, tagName, config, currentNestingDepth + 1, pathArray, replacement, canReplaceCurrent, beenMatchingCurrent)) {
+                                if (canReplaceCurrent) {
+                                    // Handle replacement for element with content/nested elements
+                                    if (replacement.has(tagName)) {
+                                        context.put(tagName, replacement.get(tagName));
+                                    }
+                                } else {
+                                    if (config.getForceList().contains(tagName)) {
+                                        // Force the value to be an array
+                                        if (jsonObject.length() == 0) {
+                                            context.put(tagName, new JSONArray());
+                                        } else if (jsonObject.length() == 1
+                                                && jsonObject.opt(config.getcDataTagName()) != null) {
+                                            context.append(tagName, jsonObject.opt(config.getcDataTagName()));
+                                        } else {
+                                            context.append(tagName, jsonObject);
+                                        }
+                                    } else {
+                                        if (jsonObject.length() == 0) {
+                                            context.accumulate(tagName, "");
+                                        } else if (jsonObject.length() == 1
+                                                && jsonObject.opt(config.getcDataTagName()) != null) {
+                                            context.accumulate(tagName, jsonObject.opt(config.getcDataTagName()));
+                                        } else {
+                                            if (!config.shouldTrimWhiteSpace()) {
+                                                removeEmpty(jsonObject, config);
+                                            }
+                                            context.accumulate(tagName, jsonObject);
+                                        }
+                                    }
+                                }
+                                System.out.println(context);
+                                // "{"contact":{"nick":"Crista","address":{"zipcode":92614,"street":"Ave of the Arts","content":">"},"name":"Crista Lopes"}}"
+                                return false;
+                            }
+                        }
+                    }
+                } else {
+                    throw x.syntaxError("Misshaped tag");
+                }
+            }
+        }
+    }
+    
+    private static boolean parse(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, 
+                                  int currentNestingDepth, String[] pathArray, boolean canBuild, 
+                                  boolean beenMatching, boolean[] foundMatch)
+            throws JSONException {
+        char c;
+        int i;
+        JSONObject jsonObject = null;
+        String string;
+        String tagName;
+        Object token;
+        XMLXsiTypeConverter<?> xmlXsiTypeConverter;
+
 
         // Test for and skip past these forms:
         // <!-- ... -->
@@ -546,15 +779,19 @@ public class XML {
             // Close tag </
 
             token = x.nextToken();
-            if (name == null) {
-                throw x.syntaxError("Mismatched close tag " + token);
+            if (canBuild) {
+                if (name == null) {
+                    throw x.syntaxError("Mismatched close tag " + token);
+                }
+                if (!token.equals(name)) {
+                    throw x.syntaxError("Mismatched " + name + " and " + token);
+                }
+                if (x.nextToken() != GT) {
+                    throw x.syntaxError("Misshaped close tag");
+                }
             }
-            if (!token.equals(name)) {
-                throw x.syntaxError("Mismatched " + name + " and " + token);
-            }
-            if (x.nextToken() != GT) {
-                throw x.syntaxError("Misshaped close tag");
-            }
+
+            
             return true;
 
         } else if (token instanceof Character) {
@@ -564,13 +801,25 @@ public class XML {
             // We're inside of a tag.
             // Set the tagname to be what the current token is.
             tagName = (String) token;
-            // If the current tagname matches the path, we should traverse.
-            // If not, we should skip to the next tag on the same level.
-            if (!tagName.equals(pathArray[currentNestingDepth])) {
-                x.skipPast("</" + tagName);
-                return false;
+            // Tracks if current tag is in the path. If it looks good, and all parent nodes have been matched, this is true.
+            boolean beenMatchingCurrent = beenMatching;
+            // Tells parser to start constructing output. Should only be true when we're on the last level of pathArr.
+
+            boolean canBuildCurrent = canBuild;
+
+
+            if (currentNestingDepth < pathArray.length) {
+                if (currentNestingDepth == 0) {
+                    beenMatchingCurrent = tagName.equals(pathArray[currentNestingDepth]);
+                } else {
+                    beenMatchingCurrent = beenMatching && tagName.equals(pathArray[currentNestingDepth]);
+                }
+                
+                // Set canBuild to true if reaching target key
+                if (currentNestingDepth == pathArray.length - 1 && beenMatchingCurrent) {
+                    canBuildCurrent = true;
+                }
             }
-            System.out.println("Currently accessing: " + pathArray[currentNestingDepth]);
             token = null;
             jsonObject = new JSONObject();
             boolean nilAttributeFound = false;
@@ -604,43 +853,52 @@ public class XML {
                                             : stringToValue((String) token));
                         }
                         token = null;
-                    } else {
+                    
+                    } else if (canBuildCurrent && !foundMatch[0]) {
+                        // Handles the case where there's just a regular ass string
+                        System.out.println(string);
                         jsonObject.accumulate(string, "");
                     }
 
 
                 } else if (token == SLASH) {
-                    // Empty tag <.../>
+                    // Handles tokens that look like: <element /> (self closing)
                     if (x.nextToken() != GT) {
                         throw x.syntaxError("Misshaped tag");
                     }
-                    if (config.getForceList().contains(tagName)) {
-                        // Force the value to be an array
-                        if (nilAttributeFound) {
-                            context.append(tagName, JSONObject.NULL);
-                        } else if (jsonObject.length() > 0) {
-                            context.append(tagName, jsonObject);
+                    if (canBuildCurrent && !foundMatch[0]) {
+                        if (config.getForceList().contains(tagName)) {
+                            // Force the value to be an array
+                            if (nilAttributeFound) {
+                                context.append(tagName, JSONObject.NULL);
+                            } else if (jsonObject.length() > 0) {
+                                context.append(tagName, jsonObject);
+                            } else {
+                                context.put(tagName, new JSONArray());
+                            }
                         } else {
-                            context.put(tagName, new JSONArray());
+                            if (nilAttributeFound) {
+                                context.accumulate(tagName, JSONObject.NULL);
+                            } else if (jsonObject.length() > 0) {
+                                context.accumulate(tagName, jsonObject);
+                            } else {
+                                context.accumulate(tagName, "");
+                            }
                         }
-                    } else {
-                        if (nilAttributeFound) {
-                            context.accumulate(tagName, JSONObject.NULL);
-                        } else if (jsonObject.length() > 0) {
-                            context.accumulate(tagName, jsonObject);
-                        } else {
-                            context.accumulate(tagName, "");
+                        if (currentNestingDepth == pathArray.length - 1) {
+                            // If we're at the correct depth to start collecting, but all we found was this empty tag.
+                            // We should terminate, and return nothing.
+                            foundMatch[0] = true;
                         }
                     }
+                    
                     return false;
 
                 } else if (token == GT) {
                     // Content, between <...> and </...>
                     // We just hit a closing tag, so actual content incoming.
-                    System.out.println("Tag name " + tagName);
                     for (;;) {
                         token = x.nextContent();
-                        
                         if (token == null) {
                             if (tagName != null) {
                                 throw x.syntaxError("Unclosed tag " + tagName);
@@ -649,9 +907,8 @@ public class XML {
                         
                         } else if (token instanceof String) {
                             // If we have regular content contained in tags
-                            System.out.println("Token content: " + token);
                             string = (String) token;
-                            if (string.length() > 0) {  
+                            if (string.length() > 0 && canBuildCurrent && !foundMatch[0]) {  
                                 if(xmlXsiTypeConverter != null) {
                                     jsonObject.accumulate(config.getcDataTagName(),
                                             stringToValue(string, xmlXsiTypeConverter));
@@ -666,31 +923,37 @@ public class XML {
                                 throw x.syntaxError("Maximum nesting depth of " + config.getMaxNestingDepth() + " reached");
                             }
 
-                            if (search(x, jsonObject, tagName, config, currentNestingDepth + 1, pathArray)) {
-                                if (config.getForceList().contains(tagName)) {
-                                    // Force the value to be an array
-                                    if (jsonObject.length() == 0) {
-                                        context.put(tagName, new JSONArray());
-                                    } else if (jsonObject.length() == 1
-                                            && jsonObject.opt(config.getcDataTagName()) != null) {
-                                        context.append(tagName, jsonObject.opt(config.getcDataTagName()));
-                                    } else {
-                                        context.append(tagName, jsonObject);
-                                    }
-                                } else {
-                                    if (jsonObject.length() == 0) {
-                                        context.accumulate(tagName, "");
-                                    } else if (jsonObject.length() == 1
-                                            && jsonObject.opt(config.getcDataTagName()) != null) {
-                                        context.accumulate(tagName, jsonObject.opt(config.getcDataTagName()));
-                                    } else {
-                                        if (!config.shouldTrimWhiteSpace()) {
-                                            removeEmpty(jsonObject, config);
+                            if (parse(x, jsonObject, tagName, config, currentNestingDepth + 1, pathArray, canBuildCurrent, beenMatchingCurrent, foundMatch)) {
+                                if (canBuildCurrent && !foundMatch[0]) {
+                                    // If we're good to start storing, and we haven't completely found what we're looking for yet.
+                                    if (!config.getForceList().contains(tagName)) {
+                                        // No need to consider for JSONArray case
+                                        // since first object found will be return immediately
+                                        if (jsonObject.length() == 0) {
+                                            context.accumulate(tagName, "");
+                                        } else if (jsonObject.length() == 1
+                                                && jsonObject.opt(config.getcDataTagName()) != null) {
+                                            context.accumulate(tagName, jsonObject.opt(config.getcDataTagName()));
+                                        } else {
+                                            if (!config.shouldTrimWhiteSpace()) {
+                                                removeEmpty(jsonObject, config);
+                                            }
+                                            context.accumulate(tagName, jsonObject);
                                         }
-                                        context.accumulate(tagName, jsonObject);
+                                    }
+                                    if (currentNestingDepth == pathArray.length - 1) {
+                                        // We found a hit, change the flag to ignore.
+                                        foundMatch[0] = true;
+                                    }
+                                    
+                                }  else {
+                                    if (jsonObject.length() > 0) {
+                                        for (String key : jsonObject.keySet()) {
+                                            context.putOpt(key, jsonObject.opt(key));
+                                        }
                                     }
                                 }
-
+                            
                                 return false;
                             }
                         }
@@ -908,11 +1171,15 @@ public class XML {
         return toJSONObject(reader, XMLParserConfiguration.ORIGINAL);
     }
 
-    // Method call with search functionality
-    public static JSONObject toJSONObject(String xmlString, String filePath) {
-        return findJSONObject(new StringReader(xmlString), XMLParserConfiguration.ORIGINAL, filePath);
+    // Find and extract object
+    public static JSONObject toJSONObject(Reader reader, JSONPointer pointer) throws JSONException{
+        return toJSONObject(reader, XMLParserConfiguration.ORIGINAL, pointer);
     }
 
+    // Find and replace object
+    public static JSONObject toJSONObject(Reader reader, JSONPointer pointer, JSONObject replacementObj) throws JSONException{
+        return toJSONObject(reader, XMLParserConfiguration.ORIGINAL, pointer, replacementObj);
+    }
     /**
      * Convert a well-formed (but not necessarily valid) XML into a
      * JSONObject. Some information may be lost in this transformation because
@@ -972,16 +1239,34 @@ public class XML {
         }
         return jo;
     }
-
-    public static JSONObject findJSONObject(Reader reader, XMLParserConfiguration config, String filePath) throws JSONException {
+    // Handler for search and extract
+    public static JSONObject toJSONObject(Reader reader, XMLParserConfiguration config, JSONPointer pointer) throws JSONException {
         // pathArray is a fixed-length array that can be indexed into. 
-        String[] pathArray = filePath.split("/");
+        String[] pathArray = pointer.toString().substring(1).split("/+");
+        JSONObject jo = new JSONObject();
+        XMLTokener x = new XMLTokener(reader, config);
+        boolean foundMatch = false;
+        while (x.more() && !foundMatch) {
+            x.skipPast("<");
+            if(x.more()) {
+                boolean[] match = new boolean[]{foundMatch};
+                parse(x, jo, null, config, 0, pathArray, false, false, match);
+            }
+        }
+        System.out.println(jo.toString());
+        return jo;
+    } 
+
+    // Handler for search and replace
+    public static JSONObject toJSONObject(Reader reader, XMLParserConfiguration config, JSONPointer pointer, JSONObject replacementObj) throws JSONException {
+        // pathArray is a fixed-length array that can be indexed into. 
+        String[] pathArray = pointer.toString().substring(1).split("/+");
         JSONObject jo = new JSONObject();
         XMLTokener x = new XMLTokener(reader, config);
         while (x.more()) {
             x.skipPast("<");
             if(x.more()) {
-                search(x, jo, null, config, 0, pathArray);
+                parse(x, jo, null, config, 0, pathArray, replacementObj, false, false);
             }
         }
         System.out.println(jo.toString());
