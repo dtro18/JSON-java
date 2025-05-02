@@ -648,7 +648,7 @@ public class XML {
                         
                         } else if (token instanceof String) {
                             string = (String) token;
-                            if (string.length() > 0) {
+                            if (string.length() > 0 && !string.equals(">")) {
                                 // Change here?????
                                 if (xmlXsiTypeConverter != null) {
                                     jsonObject.accumulate(config.getcDataTagName(),
