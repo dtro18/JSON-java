@@ -576,15 +576,15 @@ public class XML {
             boolean currentlyMatches = pathMatching;
             boolean canReplaceCurrent = canStartReplacement;
 
-            // Check if this tag matches our JSONPointer path at current nesting level
             if (currentNestingDepth < pathArray.length) {
+                // If we're within the bounds of the patharray
                 if (currentNestingDepth == 0) {
                     currentlyMatches = tagName.equals(pathArray[currentNestingDepth]);
                 } else {
                     currentlyMatches = pathMatching && tagName.equals(pathArray[currentNestingDepth]);
                 }
                 
-                // Set canReplaceCurrent to true if reaching target key
+                // We've hit the last path value that we're targeting
                 if (currentNestingDepth == pathArray.length - 1 && currentlyMatches) {
                     canReplaceCurrent = true;
                 }
