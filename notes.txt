@@ -1,0 +1,6 @@
+Build using 
+mvn clean test
+
+Run specific test (XMLTest):
+mvn test -Dtest=org.json.junit.XMLTest#searchXMLGivenPathConverttoJSONTest
+
