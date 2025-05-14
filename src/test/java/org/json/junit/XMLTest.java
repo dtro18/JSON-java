@@ -1559,7 +1559,7 @@ public class XMLTest {
 
         class StringModifier3 implements KeyTransformerInterface {
             public String apply(String inputString) {
-                return "";
+                return " ";
             }
         }
         StringReader reader3 = new StringReader(xmlString);

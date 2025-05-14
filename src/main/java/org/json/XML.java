@@ -1512,7 +1512,7 @@ public class XML {
      */
     private static String applyTransformation(String inputString, KeyTransformerInterface keyTransformer) {
         String outputString = keyTransformer.apply(inputString);
-        if (outputString == null || outputString.trim().isEmpty()) {
+        if (outputString == null || outputString.trim().isEmpty() || outputString.contains(" ")) {
             throw new IllegalArgumentException("Transformer function cannot produce a null or empty string.");
         }
         return outputString;
