@@ -1015,6 +1015,26 @@ public class XML {
             }
         }
     }
+
+    /**
+     * Scan the content following the named tag, attaching it to the context.
+     *
+     * @param x
+     *            The XMLTokener containing the source string.
+     * @param context
+     *            The JSONObject that will include the new material.
+     * @param name
+     *            The tag name.
+     * @param config
+     *            The XML parser configuration.
+     * @param currentNestingDepth
+     *            The current nesting depth.
+     * @param keyTransformer
+     *            The user-provided class that takes a string as input, transforms it, and outputs a string.
+     * @return true if the close tag is processed.
+     * 
+     * @throws JSONException Thrown if any parsing error occurs.
+    */
     private static boolean parse(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, int currentNestingDepth, KeyTransformerInterface keyTransformer)
             throws JSONException {
         char c;
@@ -1576,7 +1596,27 @@ public class XML {
         }
         return jo;
     }
-    // Handler for search and extract
+    /**
+     * Convert a well-formed (but not necessarily valid) XML into a
+     * JSONObject. Some information may be lost in this transformation because
+     * JSON is a data format and XML is a document format. XML uses elements,
+     * attributes, and content text, while JSON uses unordered collections of
+     * name/value pairs and arrays of values. JSON does not does not like to
+     * distinguish between elements and attributes. Sequences of similar
+     * elements are represented as JSONArrays. Content text may be placed in a
+     * "content" member. Comments, prologs, DTDs, and <pre>{@code
+     * &lt;[ [ ]]>}</pre>
+     * are ignored.
+     *
+     * All values are converted as strings, for 1, 01, 29.0 will not be coerced to
+     * numbers but will instead be the exact value as seen in the XML document.
+     *
+     * @param reader The XML source reader.
+     * @param config Configuration options for the parser
+     * @param pointer Path separated by "/" that represents a path to a particular JSONObject
+     * @return A JSONObject containing the identified object pointed to by the path.
+     * @throws JSONException Thrown if there is an errors while parsing the string
+     */
     public static JSONObject toJSONObject(Reader reader, XMLParserConfiguration config, JSONPointer pointer) throws JSONException {
         // pathArray is a fixed-length array that can be indexed into. 
         String[] pathArray = pointer.toString().substring(1).split("/+");
@@ -1592,8 +1632,28 @@ public class XML {
         }
         return jo;
     } 
-
-    // Handler for search and replace
+    /**
+     * Convert a well-formed (but not necessarily valid) XML into a
+     * JSONObject. Some information may be lost in this transformation because
+     * JSON is a data format and XML is a document format. XML uses elements,
+     * attributes, and content text, while JSON uses unordered collections of
+     * name/value pairs and arrays of values. JSON does not does not like to
+     * distinguish between elements and attributes. Sequences of similar
+     * elements are represented as JSONArrays. Content text may be placed in a
+     * "content" member. Comments, prologs, DTDs, and <pre>{@code
+     * &lt;[ [ ]]>}</pre>
+     * are ignored.
+     *
+     * All values are converted as strings, for 1, 01, 29.0 will not be coerced to
+     * numbers but will instead be the exact value as seen in the XML document.
+     *
+     * @param reader The XML source reader.
+     * @param config Configuration options for the parser
+     * @param pointer Path separated by "/" that represents a path to a particular JSONObject
+     * @param replacementObj A JSONObject to be replaced at the specified path.
+     * @return A JSONObject containing the structured data from the XML string, with the replacement object.
+     * @throws JSONException Thrown if there is an errors while parsing the string
+     */
     public static JSONObject toJSONObject(Reader reader, XMLParserConfiguration config, JSONPointer pointer, JSONObject replacementObj) throws JSONException {
         // pathArray is a fixed-length array that can be indexed into. 
         String[] pathArray = pointer.toString().substring(1).split("/+");
@@ -1607,7 +1667,27 @@ public class XML {
         }
         return jo;
     } 
-    // Handler for prefix modification
+    /**
+     * Convert a well-formed (but not necessarily valid) XML into a
+     * JSONObject. Some information may be lost in this transformation because
+     * JSON is a data format and XML is a document format. XML uses elements,
+     * attributes, and content text, while JSON uses unordered collections of
+     * name/value pairs and arrays of values. JSON does not does not like to
+     * distinguish between elements and attributes. Sequences of similar
+     * elements are represented as JSONArrays. Content text may be placed in a
+     * "content" member. Comments, prologs, DTDs, and <pre>{@code
+     * &lt;[ [ ]]>}</pre>
+     * are ignored.
+     *
+     * All values are converted as strings, for 1, 01, 29.0 will not be coerced to
+     * numbers but will instead be the exact value as seen in the XML document.
+     *
+     * @param reader The XML source reader.
+     * @param config Configuration options for the parser
+     * @param keyTransformer Container for the user-provided string transformation function.
+     * @return A JSONObject containing the structured data from the XML string, with the replacement object.
+     * @throws JSONException Thrown if there is an errors while parsing the string
+     */
     public static JSONObject toJSONObject(Reader reader, XMLParserConfiguration config, KeyTransformerInterface keyTransformer) throws JSONException {
         JSONObject jo = new JSONObject();
         XMLTokener x = new XMLTokener(reader, config);
