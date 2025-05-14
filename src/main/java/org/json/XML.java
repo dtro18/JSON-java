@@ -1015,6 +1015,224 @@ public class XML {
             }
         }
     }
+    private static boolean parse(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, int currentNestingDepth, KeyTransformerInterface keyTransformer)
+            throws JSONException {
+        char c;
+        int i;
+        JSONObject jsonObject = null;
+        String string;
+        String tagName;
+        Object token;
+        XMLXsiTypeConverter<?> xmlXsiTypeConverter;
+
+        // Test for and skip past these forms:
+        // <!-- ... -->
+        // <! ... >
+        // <![ ... ]]>
+        // <? ... ?>
+        // Report errors for these forms:
+        // <>
+        // <=
+        // <<
+
+        token = x.nextToken();
+        // <!
+
+        if (token == BANG) {
+            c = x.next();
+            if (c == '-') {
+                if (x.next() == '-') {
+                    x.skipPast("-->");
+                    return false;
+                }
+                x.back();
+            } else if (c == '[') {
+                token = x.nextToken();
+                if ("CDATA".equals(token)) {
+                    if (x.next() == '[') {
+                        string = x.nextCDATA();
+                        if (string.length() > 0) {
+                            context.accumulate(config.getcDataTagName(), string);
+                        }
+                        return false;
+                    }
+                }
+                throw x.syntaxError("Expected 'CDATA['");
+            }
+            i = 1;
+            do {
+                token = x.nextMeta();
+                if (token == null) {
+                    throw x.syntaxError("Missing '>' after '<!'.");
+                } else if (token == LT) {
+                    i += 1;
+                } else if (token == GT) {
+                    i -= 1;
+                }
+            } while (i > 0);
+            return false;
+        } else if (token == QUEST) {
+
+            // <?
+            x.skipPast("?>");
+            return false;
+        } else if (token == SLASH) {
+
+            // Close tag </
+
+            token = x.nextToken();
+            if (name == null) {
+                throw x.syntaxError("Mismatched close tag " + token);
+            }
+            if (!(applyTransformation(token.toString(), keyTransformer)).equals(name)) {
+                throw x.syntaxError("Mismatched " + name + " and " + token);
+            }
+            if (x.nextToken() != GT) {
+                throw x.syntaxError("Misshaped close tag");
+            }
+            return true;
+
+        } else if (token instanceof Character) {
+            throw x.syntaxError("Misshaped tag");
+            // Open tag <
+        } else {
+            // We're inside of a tag.
+            // Set the tagname to be what the current token is.
+            tagName = (String) token;
+            System.out.println(tagName);
+            // Seeing what the new tagname would be
+            tagName = applyTransformation(tagName, keyTransformer);
+            System.out.println(tagName);
+
+            token = null;
+            jsonObject = new JSONObject();
+            boolean nilAttributeFound = false;
+            xmlXsiTypeConverter = null;
+            for (;;) {
+                if (token == null) {
+                    // Grab next token. Usually (>)
+                    token = x.nextToken();
+                }
+                // attribute = value
+                if (token instanceof String) {
+                    string = (String) token;
+                    token = x.nextToken();
+                    if (token == EQ) {
+                        token = x.nextToken();
+                        if (!(token instanceof String)) {
+                            throw x.syntaxError("Missing value");
+                        }
+
+                        if (config.isConvertNilAttributeToNull()
+                                && NULL_ATTR.equals(string)
+                                && Boolean.parseBoolean((String) token)) {
+                            nilAttributeFound = true;
+                        } else if(config.getXsiTypeMap() != null && !config.getXsiTypeMap().isEmpty()
+                                && TYPE_ATTR.equals(string)) {
+                            xmlXsiTypeConverter = config.getXsiTypeMap().get(token);
+                        } else if (!nilAttributeFound) {
+                            jsonObject.accumulate(string,
+                                    config.isKeepStrings()
+                                            ? ((String) token)
+                                            : stringToValue((String) token));
+                        }
+                        token = null;
+                    } else {
+                        jsonObject.accumulate(string, "");
+                    }
+
+
+                } else if (token == SLASH) {
+                    // Empty tag <.../>
+                    if (x.nextToken() != GT) {
+                        throw x.syntaxError("Misshaped tag");
+                    }
+                    if (config.getForceList().contains(tagName)) {
+                        // Force the value to be an array
+                        if (nilAttributeFound) {
+                            context.append(tagName, JSONObject.NULL);
+                        } else if (jsonObject.length() > 0) {
+                            context.append(tagName, jsonObject);
+                        } else {
+                            context.put(tagName, new JSONArray());
+                        }
+                    } else {
+                        if (nilAttributeFound) {
+                            context.accumulate(tagName, JSONObject.NULL);
+                        } else if (jsonObject.length() > 0) {
+                            context.accumulate(tagName, jsonObject);
+                        } else {
+                            context.accumulate(tagName, "");
+                        }
+                    }
+                    return false;
+
+                } else if (token == GT) {
+                    // Content, between <...> and </...>
+                    // We just hit a closing tag, so actual content incoming.
+                    // System.out.println("Tag name " + tagName);
+                    for (;;) {
+                        token = x.nextContent();
+                        
+                        if (token == null) {
+                            if (tagName != null) {
+                                throw x.syntaxError("Unclosed tag " + tagName);
+                            }
+                            return false;
+                        
+                        } else if (token instanceof String) {
+                            // If we have regular content contained in tags
+                            string = (String) token;
+                            if (string.length() > 0) {  
+                                if(xmlXsiTypeConverter != null) {
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            stringToValue(string, xmlXsiTypeConverter));
+                                } else {
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            config.isKeepStrings() ? string : stringToValue(string));
+                                }
+                            }
+                        } else if (token == LT) {
+                            // Nested element, call parse again.
+                            if (currentNestingDepth == config.getMaxNestingDepth()) {
+                                throw x.syntaxError("Maximum nesting depth of " + config.getMaxNestingDepth() + " reached");
+                            }
+
+                            if (parse(x, jsonObject, tagName, config, currentNestingDepth + 1, keyTransformer)) {
+                                if (config.getForceList().contains(tagName)) {
+                                    // Force the value to be an array
+                                    if (jsonObject.length() == 0) {
+                                        context.put(tagName, new JSONArray());
+                                    } else if (jsonObject.length() == 1
+                                            && jsonObject.opt(config.getcDataTagName()) != null) {
+                                        context.append(tagName, jsonObject.opt(config.getcDataTagName()));
+                                    } else {
+                                        context.append(tagName, jsonObject);
+                                    }
+                                } else {
+                                    if (jsonObject.length() == 0) {
+                                        context.accumulate(tagName, "");
+                                    } else if (jsonObject.length() == 1
+                                            && jsonObject.opt(config.getcDataTagName()) != null) {
+                                        context.accumulate(tagName, jsonObject.opt(config.getcDataTagName()));
+                                    } else {
+                                        if (!config.shouldTrimWhiteSpace()) {
+                                            removeEmpty(jsonObject, config);
+                                        }
+                                        context.accumulate(tagName, jsonObject);
+                                    }
+                                }
+
+                                return false;
+                            }
+                        }
+                    }
+                } else {
+                    throw x.syntaxError("Misshaped tag");
+                }
+            }
+        }
+    }
     /**
      * This method removes any JSON entry which has the key set by XMLParserConfiguration.cDataTagName
      * and contains whitespace as this is caused by whitespace between tags. See test XMLTest.testNestedWithWhitespaceTrimmingDisabled.
@@ -1222,14 +1440,82 @@ public class XML {
         return toJSONObject(reader, XMLParserConfiguration.ORIGINAL);
     }
 
-    // Find and extract object
+    /**
+     * Convert a well-formed (but not necessarily valid) XML into a
+     * JSONObject. Some information may be lost in this transformation because
+     * JSON is a data format and XML is a document format. XML uses elements,
+     * attributes, and content text, while JSON uses unordered collections of
+     * name/value pairs and arrays of values. JSON does not does not like to
+     * distinguish between elements and attributes. Sequences of similar
+     * elements are represented as JSONArrays. Content text may be placed in a
+     * "content" member. Comments, prologs, DTDs, and <pre>{@code
+     * &lt;[ [ ]]>}</pre>
+     * are ignored.
+     *
+     * @param reader The XML source reader.
+     * @pointer A path that specifies the location of a JSONObject.
+     * @return A JSONObject containing the structured data pointed to by the given path.
+     * @throws JSONException Thrown if there is an errors while parsing the string
+     */
     public static JSONObject toJSONObject(Reader reader, JSONPointer pointer) throws JSONException{
         return toJSONObject(reader, XMLParserConfiguration.ORIGINAL, pointer);
     }
-
-    // Find and replace object
+    /**
+     * Convert a well-formed (but not necessarily valid) XML into a
+     * JSONObject. Some information may be lost in this transformation because
+     * JSON is a data format and XML is a document format. XML uses elements,
+     * attributes, and content text, while JSON uses unordered collections of
+     * name/value pairs and arrays of values. JSON does not does not like to
+     * distinguish between elements and attributes. Sequences of similar
+     * elements are represented as JSONArrays. Content text may be placed in a
+     * "content" member. Comments, prologs, DTDs, and <pre>{@code
+     * &lt;[ [ ]]>}</pre>
+     * are ignored.
+     *
+     * @param reader The XML source reader.
+     * @pointer A path that specifies the location of a JSONObject.
+     * @replacementObj The JSONObject to be substituted in at the specified location.
+     * @return A JSONObject containing the structured data with the replacement.
+     * @throws JSONException Thrown if there is an errors while parsing the string
+     */
     public static JSONObject toJSONObject(Reader reader, JSONPointer pointer, JSONObject replacementObj) throws JSONException{
         return toJSONObject(reader, XMLParserConfiguration.ORIGINAL, pointer, replacementObj);
+    }
+
+    /**
+     * Convert a well-formed (but not necessarily valid) XML into a
+     * JSONObject. Some information may be lost in this transformation because
+     * JSON is a data format and XML is a document format. XML uses elements,
+     * attributes, and content text, while JSON uses unordered collections of
+     * name/value pairs and arrays of values. JSON does not does not like to
+     * distinguish between elements and attributes. Sequences of similar
+     * elements are represented as JSONArrays. Content text may be placed in a
+     * "content" member. Comments, prologs, DTDs, and <pre>{@code
+     * &lt;[ [ ]]>}</pre>
+     * are ignored.
+     *
+     * @param reader The XML source reader.
+     * @return A JSONObject containing the structured data pointed to by the given path.
+     * @throws JSONException Thrown if there is an errors while parsing the string
+     */
+    public static JSONObject toJSONObject(Reader reader, KeyTransformerInterface keyTransformer)  {
+        return toJSONObject(reader, XMLParserConfiguration.ORIGINAL, keyTransformer);
+    }
+
+    /**
+     * Helper function that validates the output of a user-provided keyTransformer and
+     * applies the transformation if so. If not, it will leave the string as-is.
+     * 
+     * @param reader The XML source reader.
+     * @return A JSONObject containing the structured data pointed to by the given path.
+     * @throws JSONException Thrown if there is an errors while parsing the string
+     */
+    private static String applyTransformation(String inputString, KeyTransformerInterface keyTransformer) {
+        String outputString = keyTransformer.apply(inputString);
+        if (outputString == null || outputString.trim().isEmpty()) {
+            throw new IllegalArgumentException("Transformer function cannot produce a null or empty string.");
+        }
+        return outputString;
     }
     /**
      * Convert a well-formed (but not necessarily valid) XML into a
@@ -1296,12 +1582,12 @@ public class XML {
         String[] pathArray = pointer.toString().substring(1).split("/+");
         JSONObject jo = new JSONObject();
         XMLTokener x = new XMLTokener(reader, config);
-        boolean foundMatch = false;
-        while (x.more() && !foundMatch) {
+        boolean match = false;
+        while (x.more() && !match) {
             x.skipPast("<");
             if(x.more()) {
-                boolean[] match = new boolean[]{foundMatch};
-                parse(x, jo, null, config, 0, pathArray, false, false, match);
+                boolean[] matching = new boolean[]{match};
+                parse(x, jo, null, config, 0, pathArray, false, false, matching);
             }
         }
         return jo;
@@ -1321,6 +1607,18 @@ public class XML {
         }
         return jo;
     } 
+    // Handler for prefix modification
+    public static JSONObject toJSONObject(Reader reader, XMLParserConfiguration config, KeyTransformerInterface keyTransformer) throws JSONException {
+        JSONObject jo = new JSONObject();
+        XMLTokener x = new XMLTokener(reader, config);
+        while (x.more()) {
+            x.skipPast("<");
+            if(x.more()) {
+                parse(x, jo, null, config, 0, keyTransformer);
+            }
+        }
+        return jo;
+    }
     /**
      * Convert a well-formed (but not necessarily valid) XML string into a
      * JSONObject. Some information may be lost in this transformation because

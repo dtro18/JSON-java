@@ -7,6 +7,7 @@ Public Domain.
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -22,7 +23,15 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.json.*;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.json.JSONPointer;
+import org.json.JSONTokener;
+import org.json.KeyTransformerInterface;
+import org.json.XML;
+import org.json.XMLParserConfiguration;
+import org.json.XMLXsiTypeConverter;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -1510,6 +1519,54 @@ public class XMLTest {
         JSONObject expectedJson2 = new JSONObject(expectedString2);
         Util.compareActualVsExpectedJsonObjects(actualJson2,expectedJson2);
 
+    }
+
+    @Test 
+    public void keyTransformerTest() {
+        class StringModifier1 implements KeyTransformerInterface {
+            public String apply(String inputString) {
+                return new StringBuilder(inputString).reverse().toString();
+            }
+        }
+        String xmlString = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+        "<contact>\n"+
+        "  <nick>Crista </nick>\n"+
+        "  <name>Crista Lopes</name>\n" +
+        "  <address>\n" +
+        "    <street>Ave of Nowhere</street>\n" +
+        "    <zipcode>92614</zipcode>\n" +
+        "  </address>\n" +
+        "</contact>";
+
+        StringReader reader1 = new StringReader(xmlString);
+        JSONObject actualJson1 = XML.toJSONObject(reader1, new StringModifier1());
+        String expectedString1 = "{\"tcatnoc\":{\"eman\":\"Crista Lopes\",\"sserdda\":{\"edocpiz\":92614,\"teerts\":\"Ave of Nowhere\"},\"kcin\":\"Crista\"}}";
+        JSONObject expectedJson1 = new JSONObject(expectedString1);
+        Util.compareActualVsExpectedJsonObjects(actualJson1, expectedJson1);
+
+        class StringModifier2 implements KeyTransformerInterface {
+            public String apply(String inputString) {
+                return "swe262_" + inputString;
+            }
+        }
+        
+        StringReader reader2 = new StringReader(xmlString);
+        JSONObject actualJson2 = XML.toJSONObject(reader2, new StringModifier2());
+        System.out.println(actualJson2);
+        String expectedString2 = "{\"swe262_contact\":{\"swe262_name\":\"Crista Lopes\",\"swe262_nick\":\"Crista\",\"swe262_address\":{\"swe262_street\":\"Ave of Nowhere\",\"swe262_zipcode\":92614}}}";
+        JSONObject expectedJson2 = new JSONObject(expectedString2);
+        Util.compareActualVsExpectedJsonObjects(actualJson2, expectedJson2);
+
+        class StringModifier3 implements KeyTransformerInterface {
+            public String apply(String inputString) {
+                return "";
+            }
+        }
+        StringReader reader3 = new StringReader(xmlString);
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
+            XML.toJSONObject(reader3, new StringModifier3()));
+         assertEquals("Transformer function cannot produce a null or empty string.", exception.getMessage());
+        
     }
 
 }
