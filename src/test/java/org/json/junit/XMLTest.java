@@ -1552,7 +1552,6 @@ public class XMLTest {
         
         StringReader reader2 = new StringReader(xmlString);
         JSONObject actualJson2 = XML.toJSONObject(reader2, new StringModifier2());
-        System.out.println(actualJson2);
         String expectedString2 = "{\"swe262_contact\":{\"swe262_name\":\"Crista Lopes\",\"swe262_nick\":\"Crista\",\"swe262_address\":{\"swe262_street\":\"Ave of Nowhere\",\"swe262_zipcode\":92614}}}";
         JSONObject expectedJson2 = new JSONObject(expectedString2);
         Util.compareActualVsExpectedJsonObjects(actualJson2, expectedJson2);

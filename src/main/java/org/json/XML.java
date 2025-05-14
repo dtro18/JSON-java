@@ -1119,10 +1119,10 @@ public class XML {
             // We're inside of a tag.
             // Set the tagname to be what the current token is.
             tagName = (String) token;
-            System.out.println(tagName);
+            // System.out.println(tagName);
             // Seeing what the new tagname would be
             tagName = applyTransformation(tagName, keyTransformer);
-            System.out.println(tagName);
+            // System.out.println(tagName);
 
             token = null;
             jsonObject = new JSONObject();
