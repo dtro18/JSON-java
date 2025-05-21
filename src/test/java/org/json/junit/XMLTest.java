@@ -22,6 +22,7 @@ import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Iterator;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -1566,6 +1567,41 @@ public class XMLTest {
             XML.toJSONObject(reader3, new StringModifier3()));
          assertEquals("Transformer function cannot produce a null or empty string.", exception.getMessage());
         
+    }
+
+    @Test 
+    public void JSONObjToStreamTest() {
+        String xmlStr = 
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+            "<contact>\n"+
+            "  <nick>Crista </nick>\n"+
+            "  <name>Crista Lopes</name>\n" +
+            "  <address>\n" +
+            "    <street>Ave of Nowhere</street>\n" +
+            "    <zipcode>92614</zipcode>\n" +
+            "  </address>\n" +
+            "</contact>";
+        
+        // Pointer points to an actual element
+        StringReader reader1 = new StringReader(xmlStr);
+        JSONObject actualJson1 = XML.toJSONObject(reader1);
+        Iterator<String> keySet = actualJson1.keys();
+
+        JSONObject testObj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book></Books>");
+        Iterator<String> testObjKeys = testObj.keys();
+        while (testObjKeys.hasNext()) {
+            String key = testObjKeys.next();
+            System.out.println(key);
+            if (testObj.get(key) instanceof String) {
+                System.out.println("I am a string");
+            } else if (testObj.get(key) instanceof JSONObject) {
+                System.out.println("I am a JSONObject");
+            }
+            // Object value = actualJson1.get(key);
+            // System.out.println(value.getClass());
+        }
+
+    
     }
 
 }
