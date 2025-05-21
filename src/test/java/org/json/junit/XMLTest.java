@@ -21,8 +21,8 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Iterator;
+import java.util.Map;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -1581,7 +1581,22 @@ public class XMLTest {
             "    <zipcode>92614</zipcode>\n" +
             "  </address>\n" +
             "</contact>";
-        
+        // Nodes that we are sending are java class objects
+        // Transformation is converting the json into the object structure
+        // contactNode() {
+        //     nick: Crista
+        //     name: Crista Lopes
+        //     address: Ave of Nowhere 92614
+        // }
+
+        // Not modifying original json object
+        // node -> do some read operation, possibly based on the path of the node);
+        // contactNode.nick = 
+
+        // JSONObject obj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book>
+        // booksNode() {
+        //     book: AAA ASmith
+        // }
         // Pointer points to an actual element
         StringReader reader1 = new StringReader(xmlStr);
         JSONObject actualJson1 = XML.toJSONObject(reader1);
