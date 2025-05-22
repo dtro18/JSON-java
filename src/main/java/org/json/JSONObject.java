@@ -3069,44 +3069,47 @@ public class JSONObject {
     }
 
     public static class JSONNodeSpliterator implements Spliterator<JSONStreamNode> {
-        private final Deque<JSONStreamNode> stack = new ArrayDeque<>();
+        private final Deque<JSONStreamNode> q = new ArrayDeque<>();
 
         public JSONNodeSpliterator(JSONObject root) {
             for (String key : root.keySet()) {
-                stack.push(new JSONStreamNode(key, "", root.get(key)));
+                q.push(new JSONStreamNode(key, "", root.get(key)));
             }
         }
 
         @Override
         public boolean tryAdvance(Consumer<? super JSONStreamNode> action) {
-            if (stack.isEmpty()) return false;
+            if (q.isEmpty()) return false;
 
-            JSONStreamNode node = stack.pop();
+            JSONStreamNode node = q.pop();
             // Need to apply the action on a sanitized nested nodes, but push them onto the queue as full nodes.
             // atp, if you run .get(key) on a regular tag, it shuold give you a getClass() == string...
             // JSONStreamNode displayNode = JSONStreamNode(StackNode.key, );
-            if (node.nestedJson instanceof String) {
+            if (node.nestedJson instanceof String || node.nestedJson instanceof Integer) {
                 node.strVal = node.nestedJson.toString();
             }
-            action.accept(node);
+            
 
             if (node.nestedJson instanceof JSONObject) {
+                node.strVal = "Nested JSON Object";
                 JSONObject childJSONObj = (JSONObject) node.nestedJson;
                 for (String key : (childJSONObj.keySet())) {
-                    stack.push(new JSONStreamNode(key, "", childJSONObj.get(key)));
+                    q.push(new JSONStreamNode(key, "", childJSONObj.get(key)));
                 }
             } else if (node.nestedJson instanceof JSONArray) {
+                node.strVal = "Nested JSON Array";
                 JSONArray childJSONArr = (JSONArray) node.nestedJson;
                 for (int i = 0; i < childJSONArr.length(); i++) {
-                    stack.push(new JSONStreamNode(node.key + "[" + i + "]", "", childJSONArr.get(i)));
+                    q.push(new JSONStreamNode(node.key + "[" + i + "]", "", childJSONArr.get(i)));
                 }
             }
+            action.accept(node);
 
             return true;
         }
 
         public Spliterator<JSONStreamNode> trySplit() {
-            return null; // or implement splitting for parallel streams
+            return null;
         }
 
         @Override
@@ -3120,16 +3123,6 @@ public class JSONObject {
         }
     }
 
-    // "<Books>
-    //     <book>
-    //         <title>AAA</title>
-    //         <author>ASmith</author>
-    //     </book>
-    //     <book>
-    //         <title>BBB</title>
-    //         <author>BSmith</author>
-    //     </book>
-    // </Books>");
     public Stream<JSONStreamNode> toStream() {
         // Get first layer of keys. Each one will represent a node.
         return StreamSupport.stream(new JSONNodeSpliterator(this), false);

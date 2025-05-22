@@ -23,6 +23,8 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -1567,47 +1569,6 @@ public class XMLTest {
             XML.toJSONObject(reader3, new StringModifier3()));
          assertEquals("Transformer function cannot produce a null or empty string.", exception.getMessage());
         
-    }
-
-    @Test 
-    public void JSONObjToStreamTest() {
-        String xmlStr = 
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
-            "<contact>\n"+
-            "  <nick>Crista </nick>\n"+
-            "  <name>Crista Lopes</name>\n" +
-            "  <address>\n" +
-            "    <street>Ave of Nowhere</street>\n" +
-            "    <zipcode>92614</zipcode>\n" +
-            "  </address>\n" +
-            "</contact>";
-        // Nodes that we are sending are java class objects
-        // Transformation is converting the json into the object structure
-        // contactNode() {
-        //     nick: Crista
-        //     name: Crista Lopes
-        //     address: Ave of Nowhere 92614
-        // }
-
-        // Not modifying original json object
-        // node -> do some read operation, possibly based on the path of the node);
-        // contactNode.nick = 
-
-        // JSONObject obj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book>
-        // booksNode() {
-        //     book: AAA ASmith
-        // }
-        
-        StringReader reader1 = new StringReader(xmlStr);
-        JSONObject actualJson1 = XML.toJSONObject(reader1);
-        // Iterator<String> keySet = actualJson1.keys();
-
-        JSONObject testObj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book></Books>");
-        // Iterator<String> testObjKeys = testObj.keys();
-        testObj.toStream().forEach(node -> System.out.println(node.key + " " + node.strVal));
-   
-
-    
     }
 
 }

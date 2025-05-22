@@ -25,6 +25,7 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.json.CDL;
 import org.json.JSONArray;
@@ -3866,6 +3867,36 @@ public class JSONObjectTest {
         HashMap<String, Object> nestedMap = new HashMap<>();
         nestedMap.put("t", buildNestedMap(maxDepth - 1));
         return nestedMap;
+    }
+
+    @Test 
+    public void JSONObjToStreamTest() {
+        String xmlStr = 
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+            "<contact>\n"+
+            "  <nick>Crista </nick>\n"+
+            "  <name>Crista Lopes</name>\n" +
+            "  <address>\n" +
+            "    <street>Ave of Nowhere</street>\n" +
+            "    <zipcode>92614</zipcode>\n" +
+            "  </address>\n" +
+            "</contact>";
+        StringReader reader1 = new StringReader(xmlStr);
+        JSONObject actualJson1 = XML.toJSONObject(reader1);
+
+        // Testing that the stream can handle nested JSON Objects.
+        // Also testing that the node either contains its value, or the type of nested JSON object it is.
+        List<String> nodeList = actualJson1.toStream().map(node ->node.key + " " + node.strVal).collect(Collectors.toList());
+        assertEquals(nodeList.toString(), "[contact Nested JSON Object, name Crista Lopes, address Nested JSON Object, street Ave of Nowhere, zipcode 92614, nick Crista]");
+
+
+        // Testing that the stream can handle nested JSONArrays.
+        // Also demonstrating that the stream can be filtered/mapped/collected, as in previous test case.
+        JSONObject testObj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book></Books>");
+        List<String> titles = testObj.toStream().filter(node -> "title".equals(node.key)).map(node -> node.strVal).collect(Collectors.toList());
+        // Test that both book titles of the JSONArray were extracted
+        assertEquals(titles.size(), 2);
+
     }
 
 }
