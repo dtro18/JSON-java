@@ -1597,24 +1597,15 @@ public class XMLTest {
         // booksNode() {
         //     book: AAA ASmith
         // }
-        // Pointer points to an actual element
+        
         StringReader reader1 = new StringReader(xmlStr);
         JSONObject actualJson1 = XML.toJSONObject(reader1);
-        Iterator<String> keySet = actualJson1.keys();
+        // Iterator<String> keySet = actualJson1.keys();
 
         JSONObject testObj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book></Books>");
-        Iterator<String> testObjKeys = testObj.keys();
-        while (testObjKeys.hasNext()) {
-            String key = testObjKeys.next();
-            System.out.println(key);
-            if (testObj.get(key) instanceof String) {
-                System.out.println("I am a string");
-            } else if (testObj.get(key) instanceof JSONObject) {
-                System.out.println("I am a JSONObject");
-            }
-            // Object value = actualJson1.get(key);
-            // System.out.println(value.getClass());
-        }
+        // Iterator<String> testObjKeys = testObj.keys();
+        testObj.toStream().forEach(node -> System.out.println(node.key + " " + node.val.getClass()));
+   
 
     
     }

@@ -16,7 +16,10 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * A JSONObject is an unordered collection of name/value pairs. Its external
@@ -3046,5 +3049,84 @@ public class JSONObject {
         }
         if (negativeFirstChar) {return "-0";}
         return "0";
+    }
+     /**
+     * Define a top-level node. Any nested attributes will be flattened.
+     * @param value prospective number
+     * @return number without leading zeros
+     */
+    public static class JSONStreamNode {
+        // Holds tagname
+        public String key;
+        // Holds value if it's an actual value, or JSONObject/JSONArray if it's a nested object.
+        public Object val;
+        JSONStreamNode(String curKey, Object val) {
+            this.key = curKey;
+            this.val = val;
+        }
+    }
+
+    public static class JSONNodeSpliterator implements Spliterator<JSONStreamNode> {
+        private final Deque<JSONStreamNode> stack = new ArrayDeque<>();
+
+        public JSONNodeSpliterator(JSONObject root) {
+            for (String key : root.keySet()) {
+                stack.push(new JSONStreamNode(key, root.get(key)));
+            }
+        }
+
+        @Override
+        public boolean tryAdvance(Consumer<? super JSONStreamNode> action) {
+            if (stack.isEmpty()) return false;
+
+            JSONStreamNode node = stack.pop();
+            // Need to apply the action on a sanitized nested nodes, but push them onto the queue as full nodes.
+            // atp, if you run .get(key) on a regular tag, it shuold give you a getClass() == string...
+            // JSONStreamNode displayNode = JSONStreamNode(StackNode.key, );
+            action.accept(node);
+
+            if (node.val instanceof JSONObject) {
+                JSONObject childJSONObj = (JSONObject) node.val;
+                for (String key : (childJSONObj.keySet())) {
+                    stack.push(new JSONStreamNode(key, childJSONObj.get(key)));
+                }
+            } else if (node.val instanceof JSONArray) {
+                JSONArray childJSONArr = (JSONArray) node.val;
+                for (int i = 0; i < childJSONArr.length(); i++) {
+                    stack.push(new JSONStreamNode("[" + i + "]", childJSONArr.get(i)));
+                }
+            }
+
+            return true;
+        }
+
+        public Spliterator<JSONStreamNode> trySplit() {
+            return null; // or implement splitting for parallel streams
+        }
+
+        @Override
+        public long estimateSize() {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public int characteristics() {
+            return ORDERED | NONNULL;
+        }
+    }
+
+    // "<Books>
+    //     <book>
+    //         <title>AAA</title>
+    //         <author>ASmith</author>
+    //     </book>
+    //     <book>
+    //         <title>BBB</title>
+    //         <author>BSmith</author>
+    //     </book>
+    // </Books>");
+    public Stream<JSONStreamNode> toStream() {
+        // Get first layer of keys. Each one will represent a node.
+        return StreamSupport.stream(new JSONNodeSpliterator(this), false);
     }
 }
