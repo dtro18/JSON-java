@@ -3059,10 +3059,12 @@ public class JSONObject {
         // Holds tagname
         public String key;
         // Holds value if it's an actual value, or JSONObject/JSONArray if it's a nested object.
-        public Object val;
-        JSONStreamNode(String curKey, Object val) {
+        public String strVal;
+        public Object nestedJson;
+        JSONStreamNode(String curKey, String strVal, Object nestedJson) {
             this.key = curKey;
-            this.val = val;
+            this.strVal = strVal;
+            this.nestedJson = nestedJson;
         }
     }
 
@@ -3071,7 +3073,7 @@ public class JSONObject {
 
         public JSONNodeSpliterator(JSONObject root) {
             for (String key : root.keySet()) {
-                stack.push(new JSONStreamNode(key, root.get(key)));
+                stack.push(new JSONStreamNode(key, "", root.get(key)));
             }
         }
 
@@ -3083,17 +3085,20 @@ public class JSONObject {
             // Need to apply the action on a sanitized nested nodes, but push them onto the queue as full nodes.
             // atp, if you run .get(key) on a regular tag, it shuold give you a getClass() == string...
             // JSONStreamNode displayNode = JSONStreamNode(StackNode.key, );
+            if (node.nestedJson instanceof String) {
+                node.strVal = node.nestedJson.toString();
+            }
             action.accept(node);
 
-            if (node.val instanceof JSONObject) {
-                JSONObject childJSONObj = (JSONObject) node.val;
+            if (node.nestedJson instanceof JSONObject) {
+                JSONObject childJSONObj = (JSONObject) node.nestedJson;
                 for (String key : (childJSONObj.keySet())) {
-                    stack.push(new JSONStreamNode(key, childJSONObj.get(key)));
+                    stack.push(new JSONStreamNode(key, "", childJSONObj.get(key)));
                 }
-            } else if (node.val instanceof JSONArray) {
-                JSONArray childJSONArr = (JSONArray) node.val;
+            } else if (node.nestedJson instanceof JSONArray) {
+                JSONArray childJSONArr = (JSONArray) node.nestedJson;
                 for (int i = 0; i < childJSONArr.length(); i++) {
-                    stack.push(new JSONStreamNode("[" + i + "]", childJSONArr.get(i)));
+                    stack.push(new JSONStreamNode(node.key + "[" + i + "]", "", childJSONArr.get(i)));
                 }
             }
 

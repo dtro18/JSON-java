@@ -1604,7 +1604,7 @@ public class XMLTest {
 
         JSONObject testObj = XML.toJSONObject("<Books><book><title>AAA</title><author>ASmith</author></book><book><title>BBB</title><author>BSmith</author></book></Books>");
         // Iterator<String> testObjKeys = testObj.keys();
-        testObj.toStream().forEach(node -> System.out.println(node.key + " " + node.val.getClass()));
+        testObj.toStream().forEach(node -> System.out.println(node.key + " " + node.strVal));
    
 
     
