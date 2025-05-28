@@ -4,3 +4,17 @@ mvn clean test
 Run specific test (XMLTest):
 mvn test -Dtest=org.json.junit.XMLTest#searchXMLGivenPathConverttoJSONTest
 
+public static void toJSONObject(
+    Reader input,
+    Consumer<JSONObject> onSuccess,
+    Consumer<Exception> onError
+) {
+    new Thread(() -> {
+        try {
+            JSONObject jo = XML.toJSONObject(input); // synchronous parse
+            onSuccess.accept(jo); // callback with result
+        } catch (Exception e) {
+            onError.accept(e); // callback with error
+        }
+    }).start();
+}
