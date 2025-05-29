@@ -9,6 +9,10 @@ import java.io.StringReader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Iterator;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.function.Consumer;
 
 /**
  * This provides static methods to convert an XML text into a JSONObject, and to
@@ -1462,6 +1466,42 @@ public class XML {
 
     /**
      * Convert a well-formed (but not necessarily valid) XML into a
+     * JSONObject asynchronously. Some information may be lost in this transformation because
+     * JSON is a data format and XML is a document format. XML uses elements,
+     * attributes, and content text, while JSON uses unordered collections of
+     * name/value pairs and arrays of values. JSON does not does not like to
+     * distinguish between elements and attributes. Sequences of similar
+     * elements are represented as JSONArrays. Content text may be placed in a
+     * "content" member. Comments, prologs, DTDs, and <pre>{@code
+     * &lt;[ [ ]]>}</pre>
+     * are ignored.
+     *
+     * @param reader The XML source reader.
+     * @param onSuccess The callback function in the case of a successful read.
+     * @param onError The callback function in the case of an error.
+     * @return A Future<Boolean> object that is true if the success callback function was called, and false if the error callback was called.
+     * @throws JSONException Thrown if there is an errors while parsing the string
+     */
+    public static Future<Boolean> toJSONObject(Reader reader, Consumer<JSONObject> onSuccess, Consumer<Exception> onError) throws JSONException {
+        ExecutorService executor = Executors.newSingleThreadExecutor(); 
+
+        return executor.submit(() -> {
+            try {
+                JSONObject jo = toJSONObject(reader, XMLParserConfiguration.ORIGINAL); // synchronous parse
+                onSuccess.accept(jo); // callback with result
+                return true;
+            } catch (Exception e) {
+                onError.accept(e);
+                return false;
+            }
+            
+        });
+    }
+
+
+
+    /**
+     * Convert a well-formed (but not necessarily valid) XML into a
      * JSONObject. Some information may be lost in this transformation because
      * JSON is a data format and XML is a document format. XML uses elements,
      * attributes, and content text, while JSON uses unordered collections of
@@ -1596,6 +1636,8 @@ public class XML {
         }
         return jo;
     }
+
+    
     /**
      * Convert a well-formed (but not necessarily valid) XML into a
      * JSONObject. Some information may be lost in this transformation because

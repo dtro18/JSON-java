@@ -17,14 +17,16 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -1569,6 +1571,50 @@ public class XMLTest {
             XML.toJSONObject(reader3, new StringModifier3()));
          assertEquals("Transformer function cannot produce a null or empty string.", exception.getMessage());
         
+    }
+
+    @Test
+    public void asyncToJSONObjectTest() {
+        // Case where XML is correctly formed, and we want to verify that the success callback was executed.
+        String xmlString = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+        "<contact>\n"+
+        "  <nick>Crista </nick>\n"+
+        "  <name>Crista Lopes</name>\n" +
+        "  <address>\n" +
+        "    <street>Ave of Nowhere</street>\n" +
+        "    <zipcode>92614</zipcode>\n" +
+        "  </address>\n" +
+        "</contact>";
+        StringReader reader1 = new StringReader(xmlString);
+        PrintWriter writer1 = new PrintWriter(System.out, true);
+        // Store the result of the call in a futures object. We wait for it to finish executing.
+        Future<Boolean> futureRes1 = XML.toJSONObject(reader1, (JSONObject jo) -> {jo.write(writer1);}, (Exception e) -> {e.printStackTrace();});
+        try {
+            assertEquals(futureRes1.get(), true);
+        } catch (Exception e) {
+            System.out.println("Error running async method.");
+        }
+        
+
+        // Test that the fail callback is executed in the case of a malformed XML (No closing tag for contact)
+        String xmlStringMalformed = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
+        "<contact>\n"+
+        "  <nick>Crista </nick>\n"+
+        "  <name>Crista Lopes</name>\n" +
+        "  <address>\n" +
+        "    <street>Ave of Nowhere</street>\n" +
+        "    <zipcode>92614</zipcode>\n" +
+        "  </address>\n";
+        StringReader reader2 = new StringReader(xmlStringMalformed);
+        PrintWriter writer2 = new PrintWriter(System.out, true);
+        Future<Boolean> futureRes2 = XML.toJSONObject(reader2, (JSONObject jo) -> {jo.write(writer2);}, (Exception e) -> {e.printStackTrace();});
+        try {
+            assertEquals(futureRes2.get(), false);
+        } catch (Exception e) {
+            System.out.println("Error running async method.");
+        }
+        
+
     }
 
 }
