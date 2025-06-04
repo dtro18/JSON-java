@@ -579,12 +579,15 @@ public class XML {
             if (currentNestingDepth < pathArray.length) {
                 // If we're within the bounds of the patharray
                 if (currentNestingDepth == 0) {
+                    // If we just started traversal
+                    // check if our tagname equals the first entry of the path array
                     currentlyMatches = tagName.equals(pathArray[currentNestingDepth]);
                 } else {
+                    // currentlyMatches checks if the path so far is matching AND if the current tag matches
                     currentlyMatches = pathMatching && tagName.equals(pathArray[currentNestingDepth]);
                 }
                 
-                // We've hit the last path value that we're targeting
+                // We've hit the last path value that we're targeting, so we can start replacing
                 if (currentNestingDepth == pathArray.length - 1 && currentlyMatches) {
                     canReplaceCurrent = true;
                 }
@@ -634,7 +637,7 @@ public class XML {
                     if (x.nextToken() != GT) {
                         throw x.syntaxError("Misshaped tag");
                     }
-                    // If we've located an empty tag that's the end of the path, we should replace it.
+                    // Special case: If we've located an empty tag that's the end of the path, we should replace it.
                     if (canReplaceCurrent) {
                         // Handle replacement for self-closing tags
                         if (replacement.has(tagName)) {
