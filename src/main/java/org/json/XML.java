@@ -682,7 +682,7 @@ public class XML {
                         
                         } else if (token instanceof String) {
                             string = (String) token;
-                            // Handle weird bug where you get a closing tag which causes extra info to be saved
+                            // Handle weird bug where you get a closing tag which causes extra info to be saved. Explore this.
                             if (string.length() > 0 && !string.equals(">")) {
                                 if (xmlXsiTypeConverter != null) {
                                     jsonObject.accumulate(config.getcDataTagName(),

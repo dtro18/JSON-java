@@ -1515,7 +1515,10 @@ public class XMLTest {
         JSONObject actualJson1 = XML.toJSONObject(new StringReader(xmlString), new JSONPointer("/contact/address/street/"), replacement1); 
         String expectedString1 = "{\"contact\":{\"nick\":\"Crista\",\"address\":{\"zipcode\":92614,\"street\":\"Ave of the Arts\"},\"name\":\"Crista Lopes\"}}";
         JSONObject expectedJson1 = new JSONObject(expectedString1);
+        System.out.println(actualJson1);
         Util.compareActualVsExpectedJsonObjects(actualJson1,expectedJson1);
+        
+
         
         // Unsuccessful replacement given invalid path (no replacement takes place)
         JSONObject replacement2 = XML.toJSONObject("<street>Ave of the Arts</street>\n");
