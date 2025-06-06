@@ -3078,6 +3078,10 @@ public class JSONObject {
         }
 
         @Override
+        // Defines a method of advancing the spliterator 
+        // Method is repeatedly called when the spliterator is eventually wrapped in a stream
+        // Consumer is passed into the tryAdvance function that basically applies a series of functions on nodes
+        // Type of consumer (i.e. what lambda function) is not known -- it is injected in.
         public boolean tryAdvance(Consumer<? super JSONStreamNode> action) {
             if (q.isEmpty()) return false;
 
@@ -3122,7 +3126,8 @@ public class JSONObject {
             return ORDERED | NONNULL;
         }
     }
-
+    // We wrap the spliterator in a stream object, which will allow for application of functions as the data
+    // is parceled and sent through the stream. 
     public Stream<JSONStreamNode> toStream() {
         // Get first layer of keys. Each one will represent a node.
         return StreamSupport.stream(new JSONNodeSpliterator(this), false);
