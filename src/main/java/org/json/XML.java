@@ -875,6 +875,14 @@ public class XML {
                     canBuildCurrent = true;
                 }
             }
+            if (!currentlyMatches) {
+                // Currently, the recursive calls help advance the tokener to the closing tagname
+                // i.e. <name>Crista Lopes</name> will iterate the tokener all the way to the end of name, where
+                // the next token will be >.
+                // We need to simulate this behavior.
+                x.skipPast(tagName);
+                return false;
+            }
             token = null;
             jsonObject = new JSONObject();
             boolean nilAttributeFound = false;
@@ -1008,8 +1016,8 @@ public class XML {
                                         }
                                     }
                                 }
-                            
-                                return false;
+                                // Early exit performance boost
+                                return true;
                             }
                         }
                     }
