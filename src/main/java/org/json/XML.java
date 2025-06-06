@@ -1494,19 +1494,29 @@ public class XML {
      * @throws JSONException Thrown if there is an errors while parsing the string
      */
     public static Future<Boolean> toJSONObject(Reader reader, Consumer<JSONObject> onSuccess, Consumer<Exception> onError) throws JSONException {
-        ExecutorService executor = Executors.newSingleThreadExecutor(); 
-
-        return executor.submit(() -> {
+        
+        try {
+            ExecutorService executor = Executors.newSingleThreadExecutor(); 
+            return executor.submit(() -> {
             try {
                 JSONObject jo = toJSONObject(reader, XMLParserConfiguration.ORIGINAL); // synchronous parse
                 onSuccess.accept(jo); // callback with result
                 return true;
+            // Catch errors parsing XML file.
             } catch (Exception e) {
                 onError.accept(e);
                 return false;
+            } finally {
+                executor.shutdown();
             }
-            
-        });
+                
+            });
+        // Catch outer errors with thread creation or if reader/onError are null. 
+        } catch (Exception threadError) {
+            onError.accept(threadError);
+            return CompletableFuture.completedFuture(false);
+        }
+        
     }
 
 
