@@ -9,6 +9,7 @@ import java.io.StringReader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -878,14 +879,14 @@ public class XML {
                     canBuildCurrent = true;
                 }
             }
-            if (!currentlyMatches) {
-                // Currently, the recursive calls help advance the tokener to the closing tagname
-                // i.e. <name>Crista Lopes</name> will iterate the tokener all the way to the end of name, where
-                // the next token will be >.
-                // We need to simulate this behavior.
-                x.skipPast(tagName);
-                return false;
-            }
+            // if (!currentlyMatches) {
+            //     // Currently, the recursive calls help advance the tokener to the closing tagname
+            //     // i.e. <name>Crista Lopes</name> will iterate the tokener all the way to the end of name, where
+            //     // the next token will be >.
+            //     // We need to simulate this behavior.
+            //     x.skipPast(tagName);
+            //     return false;
+            // }
             token = null;
             jsonObject = new JSONObject();
             boolean nilAttributeFound = false;
@@ -1020,7 +1021,7 @@ public class XML {
                                     }
                                 }
                                 // Early exit performance boost
-                                return true;
+                                return false;
                             }
                         }
                     }

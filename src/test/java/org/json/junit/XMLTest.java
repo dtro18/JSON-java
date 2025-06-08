@@ -1439,9 +1439,9 @@ public class XMLTest {
         JSONObject jsonObject3 = XML.toJSONObject(str2, new XMLParserConfiguration().withKeepStrings(true));
         assertEquals(jsonObject3.getJSONObject("color").getString("value"), "008E97");
     }
-    @Test
-    public void searchXMLGivenPathConverttoJSONTest() {
-        String xmlStr = 
+
+    // Sample XML for multiple test cases:
+    final String xmlStr = 
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
             "<contact>\n"+
             "  <nick>Crista </nick>\n"+
@@ -1452,32 +1452,43 @@ public class XMLTest {
             "  </address>\n" +
             "</contact>";
         
+    @Test
+    public void searchElementXMLGivenPathConvertToJSONTest() {
         // Pointer points to an actual element
         StringReader reader1 = new StringReader(xmlStr);
         JSONPointer pointer1 = new JSONPointer("/contact/address/street/");
         JSONObject actualJson1 = XML.toJSONObject(reader1, pointer1);
         String expectedString1 = "{\"street\":\"Ave of Nowhere\"}";
         JSONObject expectedJson1 = new JSONObject(expectedString1);
-        // Util.compareActualVsExpectedJsonObjects(actualJson1,expectedJson1);
-        System.out.println(actualJson1);
+        Util.compareActualVsExpectedJsonObjects(actualJson1,expectedJson1);
         
+    }
+
+    @Test
+    public void searchJSONObjXMLGivenPathConvertToJSONTest() {
         // Pointer points to a jsonobject
         StringReader reader2 = new StringReader(xmlStr);
         JSONPointer pointer2 = new JSONPointer("/contact/");
         JSONObject actualJson2 = XML.toJSONObject(reader2, pointer2);
         String expectedString2 = "{\"contact\":{\"nick\":\"Crista\",\"address\":{\"zipcode\":92614,\"street\":\"Ave of Nowhere\"},\"name\":\"Crista Lopes\"}}";
         JSONObject expectedJson2 = new JSONObject(expectedString2);
-        // Util.compareActualVsExpectedJsonObjects(actualJson2,expectedJson2);
+        Util.compareActualVsExpectedJsonObjects(actualJson2,expectedJson2);
         
-        
+    }
+
+    @Test
+    public void searchXMLGivenInvalidPathConvertToJSONTest() {
         // Pointer points to an invalid path
         StringReader reader3 = new StringReader(xmlStr);
         JSONPointer pointer3 = new JSONPointer("/contact/address/street123123123/");
         JSONObject actualJson3 = XML.toJSONObject(reader3, pointer3);
         String expectedString3 = "{\"street\":\"Ave of Nowhere\"}";
         JSONObject expectedJson3 = new JSONObject(expectedString3);
-        // assertNotEquals(actualJson3,expectedJson3);
+        assertNotEquals(actualJson3,expectedJson3);
+    }
 
+    @Test
+    public void searchJSONArrXMLGivenPathConvertToJSONTest() {
         String xmlString2 = 
             "<?xml version=\"1.0\"?>\n"+ 
             "<catalog>\n" +
@@ -1497,33 +1508,25 @@ public class XMLTest {
         JSONObject actualJson4 = XML.toJSONObject(reader4, pointer4);
         String expectedString4 = "{\"book\":{\"author\":\"Author 1\",\"id\":\"bk101\",\"title\":\"Book 1\"}}";
         JSONObject expectedJson4 = new JSONObject(expectedString4);
-        // Util.compareActualVsExpectedJsonObjects(actualJson4,expectedJson4);
+        Util.compareActualVsExpectedJsonObjects(actualJson4,expectedJson4);
+    }
+    
+    @Test
+    public void replaceSuccessXMLGivenPathtoJSONTest() {
+        // Successful replacement given a valid path
+        JSONObject replacement1 = XML.toJSONObject("<street>Ave of the Arts</street>\n");
+        JSONObject actualJson1 = XML.toJSONObject(new StringReader(xmlStr), new JSONPointer("/contact/address/street/"), replacement1); 
+        String expectedString1 = "{\"contact\":{\"nick\":\"Crista\",\"address\":{\"zipcode\":92614,\"street\":\"Ave of the Arts\"},\"name\":\"Crista Lopes\"}}";
+        JSONObject expectedJson1 = new JSONObject(expectedString1);
+        Util.compareActualVsExpectedJsonObjects(actualJson1,expectedJson1);
+        
     }
 
     @Test
-    public void replaceXMLGivenPathtoJSONTest() {
-
-        String xmlString = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
-        "<contact>\n"+
-        "  <nick>Crista </nick>\n"+
-        "  <name>Crista Lopes</name>\n" +
-        "  <address>\n" +
-        "    <street>Ave of Nowhere</street>\n" +
-        "    <zipcode>92614</zipcode>\n" +
-        "  </address>\n" +
-        "</contact>";
-        // Successful replacement given a valid path
-        JSONObject replacement1 = XML.toJSONObject("<street>Ave of the Arts</street>\n");
-        JSONObject actualJson1 = XML.toJSONObject(new StringReader(xmlString), new JSONPointer("/contact/address/street/"), replacement1); 
-        String expectedString1 = "{\"contact\":{\"nick\":\"Crista\",\"address\":{\"zipcode\":92614,\"street\":\"Ave of the Arts\"},\"name\":\"Crista Lopes\"}}";
-        JSONObject expectedJson1 = new JSONObject(expectedString1);
-        System.out.println(actualJson1);
-        Util.compareActualVsExpectedJsonObjects(actualJson1,expectedJson1);
-        
-
+    public void replaceFailXMLGivenPathtoJSONTest() {
         // Unsuccessful replacement given invalid path (no replacement takes place)
         JSONObject replacement2 = XML.toJSONObject("<street>Ave of the Arts</street>\n");
-        JSONObject actualJson2 = XML.toJSONObject(new StringReader(xmlString), new JSONPointer("/contact/address/street/"), replacement2); 
+        JSONObject actualJson2 = XML.toJSONObject(new StringReader(xmlStr), new JSONPointer("/contact/address/street/"), replacement2); 
         String expectedString2 = "{\"contact\":{\"nick\":\"Crista\",\"address\":{\"zipcode\":92614,\"street\":\"Ave of the Arts\"},\"name\":\"Crista Lopes\"}}";
         JSONObject expectedJson2 = new JSONObject(expectedString2);
         Util.compareActualVsExpectedJsonObjects(actualJson2,expectedJson2);
@@ -1531,46 +1534,44 @@ public class XMLTest {
     }
 
     @Test 
-    public void keyTransformerTest() {
+    public void keyTransformerReverseTest() {
         class StringModifier1 implements KeyTransformerInterface {
             public String apply(String inputString) {
                 return new StringBuilder(inputString).reverse().toString();
             }
         }
-        String xmlString = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
-        "<contact>\n"+
-        "  <nick>Crista </nick>\n"+
-        "  <name>Crista Lopes</name>\n" +
-        "  <address>\n" +
-        "    <street>Ave of Nowhere</street>\n" +
-        "    <zipcode>92614</zipcode>\n" +
-        "  </address>\n" +
-        "</contact>";
 
-        StringReader reader1 = new StringReader(xmlString);
+        StringReader reader1 = new StringReader(xmlStr);
         JSONObject actualJson1 = XML.toJSONObject(reader1, new StringModifier1());
         String expectedString1 = "{\"tcatnoc\":{\"eman\":\"Crista Lopes\",\"sserdda\":{\"edocpiz\":92614,\"teerts\":\"Ave of Nowhere\"},\"kcin\":\"Crista\"}}";
         JSONObject expectedJson1 = new JSONObject(expectedString1);
         Util.compareActualVsExpectedJsonObjects(actualJson1, expectedJson1);
 
+    }
+
+    @Test
+    public void keyTransformerPrependTest() {
         class StringModifier2 implements KeyTransformerInterface {
             public String apply(String inputString) {
                 return "swe262_" + inputString;
             }
         }
         
-        StringReader reader2 = new StringReader(xmlString);
+        StringReader reader2 = new StringReader(xmlStr);
         JSONObject actualJson2 = XML.toJSONObject(reader2, new StringModifier2());
         String expectedString2 = "{\"swe262_contact\":{\"swe262_name\":\"Crista Lopes\",\"swe262_nick\":\"Crista\",\"swe262_address\":{\"swe262_street\":\"Ave of Nowhere\",\"swe262_zipcode\":92614}}}";
         JSONObject expectedJson2 = new JSONObject(expectedString2);
         Util.compareActualVsExpectedJsonObjects(actualJson2, expectedJson2);
+    }
 
+    @Test
+    public void keyTransformerIllegalTest() {
         class StringModifier3 implements KeyTransformerInterface {
             public String apply(String inputString) {
                 return " ";
             }
         }
-        StringReader reader3 = new StringReader(xmlString);
+        StringReader reader3 = new StringReader(xmlStr);
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
             XML.toJSONObject(reader3, new StringModifier3()));
          assertEquals("Transformer function cannot produce a null or empty string.", exception.getMessage());
@@ -1578,18 +1579,9 @@ public class XMLTest {
     }
 
     @Test
-    public void asyncToJSONObjectTest() {
+    public void asyncToJSONObjectSuccessTest() {
         // Case where XML is correctly formed, and we want to verify that the success callback was executed.
-        String xmlString = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
-        "<contact>\n"+
-        "  <nick>Crista </nick>\n"+
-        "  <name>Crista Lopes</name>\n" +
-        "  <address>\n" +
-        "    <street>Ave of Nowhere</street>\n" +
-        "    <zipcode>92614</zipcode>\n" +
-        "  </address>\n" +
-        "</contact>";
-        StringReader reader1 = new StringReader(xmlString);
+        StringReader reader1 = new StringReader(xmlStr);
         PrintWriter writer1 = new PrintWriter(System.out, true);
         // Store the result of the call in a futures object. We wait for it to finish executing.
         Future<Boolean> futureRes1 = XML.toJSONObject(reader1, (JSONObject jo) -> {jo.write(writer1);}, (Exception e) -> {e.printStackTrace();});
@@ -1599,6 +1591,8 @@ public class XMLTest {
             System.out.println("Error running async method.");
         }
         
+    }
+    public void asyncToJSONObjectErrorTest() {
 
         // Test that the fail callback is executed in the case of a malformed XML (No closing tag for contact)
         String xmlStringMalformed = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
@@ -1611,7 +1605,7 @@ public class XMLTest {
         "  </address>\n";
         StringReader reader2 = new StringReader(xmlStringMalformed);
         PrintWriter writer2 = new PrintWriter(System.out, true);
-        Future<Boolean> futureRes2 = XML.toJSONObject(reader2, (JSONObject jo) -> {jo.write(writer2);}, (Exception e) -> {e.printStackTrace();});
+        Future<Boolean> futureRes2 = XML.toJSONObject(reader2, (JSONObject jo) -> {jo.write(writer2);}, (Exception e) -> {System.out.println("Error callback executed");});
         try {
             assertEquals(futureRes2.get(), false);
         } catch (Exception e) {

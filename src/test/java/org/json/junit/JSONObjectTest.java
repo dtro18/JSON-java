@@ -3869,9 +3869,8 @@ public class JSONObjectTest {
         return nestedMap;
     }
 
-    @Test 
-    public void JSONObjToStreamTest() {
-        String xmlStr = 
+    // Global XML to use for next two test cases:
+    String xmlStr = 
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+
             "<contact>\n"+
             "  <nick>Crista </nick>\n"+
@@ -3881,6 +3880,10 @@ public class JSONObjectTest {
             "    <zipcode>92614</zipcode>\n" +
             "  </address>\n" +
             "</contact>";
+
+    @Test 
+    public void nestedJSONObjToStreamTest() {
+        
         StringReader reader1 = new StringReader(xmlStr);
         JSONObject actualJson1 = XML.toJSONObject(reader1);
 
@@ -3889,6 +3892,9 @@ public class JSONObjectTest {
         List<String> nodeList = actualJson1.toStream().map(node ->node.key + " " + node.strVal).collect(Collectors.toList());
         assertEquals(nodeList.toString(), "[contact Nested JSON Object, name Crista Lopes, address Nested JSON Object, street Ave of Nowhere, zipcode 92614, nick Crista]");
 
+    }
+    @Test
+    public void nestedJSONArrToStreamTest() {
 
         // Testing that the stream can handle nested JSONArrays.
         // Also demonstrating that the stream can be filtered/mapped/collected, as in previous test case.
